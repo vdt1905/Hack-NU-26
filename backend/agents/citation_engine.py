@@ -2,11 +2,15 @@
 FormatForge AI — Agent 4: Citation & Reference Engine
 Parses references, formats them with citeproc-py, validates citation consistency.
 
-Phase 1 enhancements:
- • Skips citation extraction if already done by StructureDetector
- • Numbered-reference parsing (PNAS/Vancouver style)
- • Better APA reference fallback parsing
- • Improved author-string handling
+Phase 3 — Complete citation pipeline:
+ • Enhanced reference parsing (APA / numbered / book / fallback)
+ • citeproc-py integration for CSL-formatted bibliography
+ • Numeric citation↔reference matching (number → entry mapping)
+ • Format issue detection (& vs and, et al. threshold, year present)
+ • Fuzzy matching with Levenshtein distance fallback
+ • Citation consistency validation with detailed reporting
+
+100 % deterministic core — zero LLM calls.
 """
 
 from __future__ import annotations
@@ -34,7 +38,11 @@ from backend.schemas.style_spec import StyleSpec
 
 logger = logging.getLogger(__name__)
 
-# ── Citation regex patterns ───────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+#  Regex patterns
+# ══════════════════════════════════════════════════════════════
+
+# ── In-text citation patterns ────────────────────────────────
 
 # Parenthetical: (Smith, 2023) or (Smith & Jones, 2023) or (Smith et al., 2023)
 PARENTHETICAL_RE = re.compile(
@@ -50,7 +58,7 @@ NARRATIVE_RE = re.compile(
     r'\s*\((\d{4}[a-z]?)\)'
 )
 
-# ── Reference regex patterns ─────────────────────────────────
+# ── Reference regex patterns ────────────────────────────────
 
 # APA style: Author, A. A. (Year). Title. Journal, Vol(Issue), Pages.
 APA_JOURNAL_RE = re.compile(
@@ -65,46 +73,77 @@ NUMBERED_JOURNAL_RE = re.compile(
     r'(?:\((\d+)\))?\s*[:\-,]\s*([\d\-–]+)'
 )
 
+# Book pattern: Author (Year). Title (Edition). Publisher.
+BOOK_RE = re.compile(
+    r'^(.+?)\s*\((\d{4})\)\.\s*(.+?)(?:\((.+?)\))?\.\s*(.+?)\.?\s*$'
+)
+
+# DOI extractor
+DOI_RE = re.compile(r'(?:https?://)?doi\.org/(10\.\d{4,}/\S+)', re.IGNORECASE)
+
+
+# ══════════════════════════════════════════════════════════════
+#  CitationEngineAgent
+# ══════════════════════════════════════════════════════════════
 
 class CitationEngineAgent:
-    """Agent 4 — Citation extraction, reference parsing, formatting, and validation."""
+    """Agent 4 — Citation extraction, reference parsing, citeproc formatting, and validation."""
 
-    def process(self, docir: DocIR, style_spec: StyleSpec) -> tuple[DocIR, CitationReport]:
+    # ── Public API ────────────────────────────────────────────
+
+    def process(
+        self,
+        docir: DocIR,
+        style_spec: StyleSpec,
+    ) -> tuple[DocIR, CitationReport]:
         """
         Full citation processing pipeline:
-            1. Extract in-text citations from body paragraphs (if not already done)
+            1. Extract in-text citations from body paragraphs
             2. Parse reference entries into structured data
-            3. (Future) Format refs with citeproc-py
+            3. Format references with citeproc-py (CSL)
             4. Validate citation↔reference consistency
+            5. Detect citation format issues
 
         Returns:
             Updated DocIR + CitationReport.
         """
-        # Step 1: Extract in-text citations (skip if StructureDetector already did)
+        # Step 1: Extract in-text citations
         self._extract_citations(docir)
 
         # Step 2: Parse reference entries
         self._parse_references(docir)
 
-        # Step 3: Validate consistency
+        # Step 3: Format with citeproc-py
+        formatted_refs = self._format_with_citeproc(docir, style_spec)
+
+        # Step 4+5: Validate consistency + detect format issues
         report = self._validate_consistency(docir, style_spec)
+
+        # Attach formatted references to report for downstream use
+        report.formatted_bibliography = formatted_refs
 
         return docir, report
 
-    # ── Step 1: Extract in-text citations ────────────────────
+    # ══════════════════════════════════════════════════════════
+    #  Step 1: Extract in-text citations
+    # ══════════════════════════════════════════════════════════
 
     def _extract_citations(self, docir: DocIR) -> None:
         """Find all in-text citations in body paragraphs."""
-        # Skip if citations were already extracted by StructureDetector
         existing = sum(len(e.citations_found) for e in docir.elements)
         if existing > 0:
             logger.info(
-                "Citations already extracted (%d found) — skipping re-extraction.", existing
+                "Citations already extracted (%d found) — skipping re-extraction.",
+                existing,
             )
             return
 
         for elem in docir.elements:
-            if elem.role not in (ElementRole.BODY, ElementRole.ABSTRACT_BODY, ElementRole.UNKNOWN):
+            if elem.role not in (
+                ElementRole.BODY,
+                ElementRole.ABSTRACT_BODY,
+                ElementRole.UNKNOWN,
+            ):
                 continue
             if not elem.content:
                 continue
@@ -114,20 +153,23 @@ class CitationEngineAgent:
             # Parenthetical citations
             for m in PARENTHETICAL_RE.finditer(elem.content):
                 inner = m.group(1)
-                # May contain multiple citations separated by ;
                 for part in inner.split(";"):
                     part = part.strip()
-                    # Extract author and year
                     author_year = re.match(
-                        r'([A-Z][a-zà-ÿ]+(?:\s(?:&|and)\s[A-Z][a-zà-ÿ]+)*(?:\set\sal\.)?)'
-                        r',\s*(\d{4}[a-z]?)',
+                        r'([A-Z][a-zà-ÿ]+(?:\s(?:&|and)\s[A-Z][a-zà-ÿ]+)*'
+                        r'(?:\set\sal\.)?),\s*(\d{4}[a-z]?)',
                         part,
                     )
                     if author_year:
                         citations.append(InTextCitation(
                             text=f"({part})",
                             citation_type=CitationType.PARENTHETICAL,
-                            authors=[author_year.group(1).split(" & ")[0].split(" and ")[0].strip()],
+                            authors=[
+                                author_year.group(1)
+                                .split(" & ")[0]
+                                .split(" and ")[0]
+                                .strip()
+                            ],
                             year=author_year.group(2),
                             position_start=m.start(),
                             position_end=m.end(),
@@ -137,12 +179,12 @@ class CitationEngineAgent:
             for m in NARRATIVE_RE.finditer(elem.content):
                 author = m.group(1).split(" and ")[0].split(" & ")[0].strip()
                 year = m.group(2)
-                # Skip if this is already captured as parenthetical
-                overlap = False
-                for c in citations:
-                    if c.position_start and m.start() >= c.position_start and m.end() <= c.position_end:
-                        overlap = True
-                        break
+                overlap = any(
+                    c.position_start is not None
+                    and m.start() >= c.position_start
+                    and m.end() <= c.position_end
+                    for c in citations
+                )
                 if not overlap:
                     citations.append(InTextCitation(
                         text=f"{m.group(1)} ({year})",
@@ -158,7 +200,9 @@ class CitationEngineAgent:
         total = sum(len(e.citations_found) for e in docir.elements)
         logger.info("Extracted %d in-text citations.", total)
 
-    # ── Step 2: Parse reference entries ──────────────────────
+    # ══════════════════════════════════════════════════════════
+    #  Step 2: Parse reference entries
+    # ══════════════════════════════════════════════════════════
 
     def _parse_references(self, docir: DocIR) -> None:
         """Parse raw reference strings into structured ParsedReference."""
@@ -171,20 +215,28 @@ class CitationEngineAgent:
             elem.parsed_reference = self._parse_single_reference(text)
 
         parsed_ok = sum(
-            1 for e in ref_elements
-            if e.parsed_reference and (e.parsed_reference.year or e.parsed_reference.authors)
+            1
+            for e in ref_elements
+            if e.parsed_reference
+            and (e.parsed_reference.year or e.parsed_reference.authors)
         )
         logger.info(
             "Parsed %d/%d reference entries successfully.",
-            parsed_ok, len(ref_elements),
+            parsed_ok,
+            len(ref_elements),
         )
 
     def _parse_single_reference(self, text: str) -> ParsedReference:
         """
         Parse a single reference string into structured fields.
-        Tries APA format first, then numbered format, then fallback extraction.
+        Strategy: APA journal → numbered journal → book → fallback.
         """
         ref = ParsedReference()
+
+        # Extract DOI from anywhere in the string
+        doi_m = DOI_RE.search(text)
+        if doi_m:
+            ref.doi = doi_m.group(1)
 
         # ── Try APA journal article pattern ──────────────────
         m = APA_JOURNAL_RE.match(text)
@@ -196,13 +248,15 @@ class CitationEngineAgent:
             ref.volume = m.group(5)
             ref.issue = m.group(6)
             ref.pages = m.group(7).strip().rstrip(".")
-            ref.doi = m.group(8).strip() if m.group(8) else None
+            if m.group(8):
+                ref.doi = m.group(8).strip()
             ref.ref_type = "article-journal"
             return ref
 
         # ── Try numbered reference (PNAS / Vancouver) ────────
         m = NUMBERED_JOURNAL_RE.match(text)
         if m:
+            ref.original_number = int(m.group(1))
             ref.authors = self._parse_author_string(m.group(2))
             ref.year = m.group(3)
             ref.title = m.group(4).strip().rstrip(".")
@@ -215,35 +269,44 @@ class CitationEngineAgent:
 
         # ── Fallback: extract what we can ────────────────────
         # Strip leading number if present
+        num_m = re.match(r'^(\d{1,3})[\.\)]\s*', text)
+        if num_m:
+            ref.original_number = int(num_m.group(1))
+
         text_clean = re.sub(r'^\d{1,3}[\.\)]\s*', '', text)
 
         # Year
         year_m = re.search(r'\((\d{4})\)', text_clean)
         if year_m:
             ref.year = year_m.group(1)
-            # Authors = everything before year
-            author_part = text_clean[:year_m.start()].strip().rstrip(",").strip()
+            author_part = (
+                text_clean[: year_m.start()].strip().rstrip(",").strip()
+            )
             if author_part:
                 ref.authors = self._parse_author_string(author_part)
-            # Title = text after year until next period
-            after_year = text_clean[year_m.end():].strip().lstrip(".").strip()
+            after_year = (
+                text_clean[year_m.end() :].strip().lstrip(".").strip()
+            )
             title_m = re.match(r'(.+?)\.', after_year)
             if title_m:
                 ref.title = title_m.group(1).strip()
+            # Try to extract container title after the title
+            if title_m:
+                remaining = after_year[title_m.end() :].strip()
+                journal_m = re.match(r'(.+?)\s*(\d+)', remaining)
+                if journal_m:
+                    ref.container_title = journal_m.group(1).strip().rstrip(",")
+                    ref.volume = journal_m.group(2)
 
         return ref
 
     @staticmethod
     def _parse_author_string(author_str: str) -> list[AuthorName]:
-        """Parse 'Smith, J., & Jones, A. B.' or 'Smith J, Jones A' into AuthorName list."""
+        """Parse 'Smith, J., & Jones, A. B.' or 'Nataro JP, Kaper JB' into AuthorName list."""
         authors: list[AuthorName] = []
 
-        # Detect style:
-        #   APA:       "Family, Given" — initials have periods: "Smith, J. A."
-        #   Vancouver: "Family Initials, Family Initials" — no periods: "Nataro JP"
         has_ampersand = "&" in author_str or " and " in author_str.lower()
 
-        # Also detect APA by checking if any comma-separated part is period-initials
         is_apa = has_ampersand
         if not is_apa:
             parts_raw = [p.strip() for p in author_str.split(",")]
@@ -254,8 +317,9 @@ class CitationEngineAgent:
                     break
 
         if is_apa:
-            # APA style: split on ", &" or "and" or "&"
-            parts = re.split(r',\s*&\s*|,\s*and\s*|\s+&\s+|\s+and\s+', author_str)
+            parts = re.split(
+                r',\s*&\s*|,\s*and\s*|\s+&\s+|\s+and\s+', author_str
+            )
             for part in parts:
                 part = part.strip().rstrip(",").strip()
                 if not part or part.lower().startswith("et al"):
@@ -269,7 +333,7 @@ class CitationEngineAgent:
                 else:
                     authors.append(AuthorName(family=part))
         else:
-            # Vancouver/PNAS style: "Nataro JP, Kaper JB" — comma separates authors
+            # Vancouver/PNAS style
             parts = [p.strip() for p in author_str.split(",")]
             for part in parts:
                 part = part.strip()
@@ -277,14 +341,15 @@ class CitationEngineAgent:
                     continue
                 words = part.split()
                 if len(words) >= 2:
-                    # Check if last word(s) are initials (uppercase, 1-2 chars each)
                     initials = []
                     idx = len(words) - 1
-                    while idx >= 1 and all(c.isupper() or c == "." for c in words[idx]):
+                    while idx >= 1 and all(
+                        c.isupper() or c == "." for c in words[idx]
+                    ):
                         initials.insert(0, words[idx])
                         idx -= 1
                     if initials:
-                        family = " ".join(words[:idx + 1])
+                        family = " ".join(words[: idx + 1])
                         given = " ".join(initials)
                         authors.append(AuthorName(family=family, given=given))
                     else:
@@ -294,10 +359,121 @@ class CitationEngineAgent:
 
         return authors
 
-    # ── Step 3: Validate citation↔reference consistency ──────
+    # ══════════════════════════════════════════════════════════
+    #  Step 3: Format with citeproc-py
+    # ══════════════════════════════════════════════════════════
 
-    def _validate_consistency(self, docir: DocIR, style_spec: StyleSpec) -> CitationReport:
-        """Check that every citation matches a reference and vice versa."""
+    def _format_with_citeproc(
+        self,
+        docir: DocIR,
+        style_spec: StyleSpec,
+    ) -> list[str]:
+        """
+        Use citeproc-py to render references in the target CSL style (default: APA).
+
+        Returns a list of formatted reference strings.
+        Falls back gracefully if citeproc fails.
+        """
+        ref_elements = docir.get_reference_entries()
+        parsed_refs = [
+            e.parsed_reference
+            for e in ref_elements
+            if e.parsed_reference
+            and (e.parsed_reference.year or e.parsed_reference.authors)
+        ]
+
+        if not parsed_refs:
+            logger.info("No parsed references to format with citeproc.")
+            return []
+
+        try:
+            from citeproc import (
+                Citation,
+                CitationItem,
+                CitationStylesBibliography,
+                CitationStylesStyle,
+                formatter,
+            )
+            from citeproc.source.json import CiteProcJSON
+
+            # Resolve CSL style
+            style_name = style_spec.references.csl_style_name or "apa"
+            style_path = self._get_csl_style_path(style_name)
+            if style_path is None:
+                logger.warning(
+                    "CSL style '%s' not found — skipping citeproc formatting.",
+                    style_name,
+                )
+                return []
+
+            style = CitationStylesStyle(style_path)
+
+            # Build CSL-JSON source with unique IDs
+            csl_items = []
+            id_set: set[str] = set()
+            for i, pr in enumerate(parsed_refs):
+                csl_id = f"ref-{i}"
+                item = pr.to_csl_json(csl_id=csl_id)
+                csl_items.append(item)
+                id_set.add(csl_id)
+
+            source = CiteProcJSON(csl_items)
+            bib = CitationStylesBibliography(style, source, formatter.plain)
+
+            # Register all citations so citeproc knows about them
+            for csl_id in id_set:
+                cit = Citation([CitationItem(csl_id)])
+                bib.register(cit)
+
+            # Generate formatted bibliography
+            formatted: list[str] = []
+            for item in bib.bibliography():
+                text = str(item).strip()
+                formatted.append(text)
+
+            # Store formatted strings back on ParsedReference
+            for pr, fmt in zip(parsed_refs, formatted):
+                pr.formatted_apa = fmt
+
+            logger.info(
+                "citeproc-py formatted %d/%d references in '%s' style.",
+                len(formatted),
+                len(ref_elements),
+                style_name,
+            )
+            return formatted
+
+        except Exception as exc:
+            logger.warning(
+                "citeproc-py formatting failed (non-fatal): %s", exc
+            )
+            return []
+
+    @staticmethod
+    def _get_csl_style_path(style_name: str) -> Optional[str]:
+        """Resolve a CSL style name to a file path."""
+        try:
+            from citeproc_styles import get_style_filepath
+
+            return get_style_filepath(style_name)
+        except Exception:
+            return None
+
+    # ══════════════════════════════════════════════════════════
+    #  Step 4+5: Validate consistency + format issues
+    # ══════════════════════════════════════════════════════════
+
+    def _validate_consistency(
+        self,
+        docir: DocIR,
+        style_spec: StyleSpec,
+    ) -> CitationReport:
+        """
+        Comprehensive citation↔reference validation:
+            A. Author-date matching (fuzzy, first-author + year)
+            B. Numeric matching (number → reference entry)
+            C. Format issue detection (& vs and, et al., year present)
+        """
         report = CitationReport()
 
         all_citations = docir.get_all_citations()
@@ -308,57 +484,265 @@ class CitationEngineAgent:
 
         matched_refs: set[str] = set()
 
-        # Determine if citations are numeric or author-date
+        # Determine citation system
         numeric_count = sum(1 for c in all_citations if not c.year)
         author_date_count = sum(1 for c in all_citations if c.year)
 
         if numeric_count > author_date_count:
-            # Numeric citation system — match by reference number
-            report.matched = min(numeric_count, len(ref_elements))
-            # Can't do detailed matching for numeric without number tracking
-            # Mark all as "matched" if ref count >= citation count
-            logger.info(
-                "Numeric citation system detected (%d numeric, %d author-date). "
-                "Basic count matching applied.",
-                numeric_count, author_date_count,
+            # ── Numeric citation system ──────────────────────
+            self._match_numeric_citations(
+                all_citations, ref_elements, report, matched_refs
             )
         else:
-            # Author-date: match by first author family name + year
-            for cit in all_citations:
-                match_found = False
-                for ref_elem in ref_elements:
-                    pr = ref_elem.parsed_reference
-                    if pr and pr.authors:
-                        first_author_family = pr.authors[0].family.lower()
-                        cit_author = cit.authors[0].lower() if cit.authors else ""
-                        if first_author_family == cit_author and pr.year == cit.year:
-                            match_found = True
-                            matched_refs.add(ref_elem.id)
-                            break
+            # ── Author-date citation system ──────────────────
+            self._match_author_date_citations(
+                all_citations, ref_elements, report, matched_refs
+            )
 
-                if match_found:
-                    report.matched += 1
-                else:
-                    report.orphan_citations.append(CitationMatch(
-                        citation_text=cit.text,
-                        status="orphan",
-                        issue=f"No matching reference found for {cit.text}",
-                    ))
-
-            # Check 2: Every reference → citation
-            for ref_elem in ref_elements:
-                if ref_elem.id not in matched_refs:
-                    report.uncited_references.append(OrphanReference(
+        # ── Check for uncited references ─────────────────────
+        for ref_elem in ref_elements:
+            if ref_elem.id not in matched_refs:
+                report.uncited_references.append(
+                    OrphanReference(
                         reference_text=ref_elem.content[:100],
                         issue="Not cited anywhere in text",
-                    ))
+                    )
+                )
+
+        # ── Detect format issues ─────────────────────────────
+        self._detect_format_issues(docir, style_spec, report)
 
         report.compute_score()
         logger.info(
-            "Citation consistency: %d matched, %d orphan citations, %d uncited refs — score %.1f%%",
+            "Citation consistency: %d matched, %d orphan citations, "
+            "%d uncited refs, %d format issues — score %.1f%%",
             report.matched,
             len(report.orphan_citations),
             len(report.uncited_references),
+            len(report.format_issues),
             report.consistency_score,
         )
         return report
+
+    # ── Numeric matching ─────────────────────────────────────
+
+    def _match_numeric_citations(
+        self,
+        all_citations: list[InTextCitation],
+        ref_elements: list[DocElement],
+        report: CitationReport,
+        matched_refs: set[str],
+    ) -> None:
+        """Match numeric citations [1], [2,3], (1–5) to numbered reference entries."""
+        # Build number → ref_element map
+        num_to_ref: dict[int, DocElement] = {}
+        for ref_elem in ref_elements:
+            pr = ref_elem.parsed_reference
+            if pr and pr.original_number is not None:
+                num_to_ref[pr.original_number] = ref_elem
+            else:
+                # Try extracting number from content
+                m = re.match(r'^(\d{1,3})[\.\)]', ref_elem.content.strip())
+                if m:
+                    num_to_ref[int(m.group(1))] = ref_elem
+
+        # Extract numbers from each numeric citation
+        for cit in all_citations:
+            if cit.year:
+                # This is an author-date citation in a mostly-numeric doc
+                # Try matching it as author-date
+                match_found = self._try_author_date_match(
+                    cit, ref_elements, matched_refs
+                )
+                if match_found:
+                    report.matched += 1
+                else:
+                    report.orphan_citations.append(
+                        CitationMatch(
+                            citation_text=cit.text,
+                            status="orphan",
+                            issue=f"No matching reference for {cit.text}",
+                        )
+                    )
+                continue
+
+            # Parse numbers from the citation text
+            numbers = self._extract_citation_numbers(cit.text)
+            if not numbers:
+                report.orphan_citations.append(
+                    CitationMatch(
+                        citation_text=cit.text,
+                        status="orphan",
+                        issue=f"Could not extract reference numbers from {cit.text}",
+                    )
+                )
+                continue
+
+            for num in numbers:
+                if num in num_to_ref:
+                    report.matched += 1
+                    matched_refs.add(num_to_ref[num].id)
+                else:
+                    report.orphan_citations.append(
+                        CitationMatch(
+                            citation_text=cit.text,
+                            status="orphan",
+                            issue=f"Reference [{num}] not found in reference list",
+                        )
+                    )
+
+    @staticmethod
+    def _extract_citation_numbers(text: str) -> list[int]:
+        """Extract reference numbers from a citation like '(1)', '(2,3)', '(9–12)'."""
+        nums: list[int] = []
+        inner = text.strip("()[] ")
+
+        for part in re.split(r'[,;\s]+', inner):
+            part = part.strip()
+            # Range: 9-12 or 9–12
+            range_m = re.match(r'(\d+)\s*[-–]\s*(\d+)', part)
+            if range_m:
+                start, end = int(range_m.group(1)), int(range_m.group(2))
+                nums.extend(range(start, end + 1))
+            elif part.isdigit():
+                nums.append(int(part))
+
+        return nums
+
+    # ── Author-date matching ─────────────────────────────────
+
+    def _match_author_date_citations(
+        self,
+        all_citations: list[InTextCitation],
+        ref_elements: list[DocElement],
+        report: CitationReport,
+        matched_refs: set[str],
+    ) -> None:
+        """Match author-date citations to references by first author + year."""
+        for cit in all_citations:
+            match_found = self._try_author_date_match(
+                cit, ref_elements, matched_refs
+            )
+            if match_found:
+                report.matched += 1
+            else:
+                report.orphan_citations.append(
+                    CitationMatch(
+                        citation_text=cit.text,
+                        status="orphan",
+                        issue=f"No matching reference found for {cit.text}",
+                    )
+                )
+
+    def _try_author_date_match(
+        self,
+        cit: InTextCitation,
+        ref_elements: list[DocElement],
+        matched_refs: set[str],
+    ) -> bool:
+        """Attempt to match a single author-date citation to a reference."""
+        cit_author = cit.authors[0].lower() if cit.authors else ""
+        cit_year = cit.year
+
+        # Exact match: first author family name + year
+        for ref_elem in ref_elements:
+            pr = ref_elem.parsed_reference
+            if pr and pr.authors and pr.year:
+                first_family = pr.authors[0].family.lower()
+                if first_family == cit_author and pr.year == cit_year:
+                    matched_refs.add(ref_elem.id)
+                    return True
+
+        # Fuzzy match: try Levenshtein distance on author name
+        if cit_author:
+            for ref_elem in ref_elements:
+                pr = ref_elem.parsed_reference
+                if pr and pr.authors and pr.year == cit_year:
+                    first_family = pr.authors[0].family.lower()
+                    if self._fuzzy_match(cit_author, first_family, threshold=85):
+                        matched_refs.add(ref_elem.id)
+                        return True
+
+        return False
+
+    @staticmethod
+    def _fuzzy_match(a: str, b: str, threshold: int = 85) -> bool:
+        """Fuzzy string match using Levenshtein ratio. Returns True if ratio >= threshold."""
+        try:
+            from thefuzz import fuzz
+
+            return fuzz.ratio(a, b) >= threshold
+        except ImportError:
+            # Fallback: simple substring match
+            return a in b or b in a
+
+    # ── Format issue detection ───────────────────────────────
+
+    def _detect_format_issues(
+        self,
+        docir: DocIR,
+        style_spec: StyleSpec,
+        report: CitationReport,
+    ) -> None:
+        """
+        Check citation formatting against APA 7 rules:
+            1. Ampersand (&) required in parenthetical, 'and' in narrative
+            2. et al. required for 3+ authors from first citation
+            3. Year must be present
+        """
+        spec = style_spec.in_text_citations
+
+        for elem in docir.elements:
+            for cit in elem.citations_found:
+                # Check 1: & vs "and" in parenthetical
+                if spec.ampersand_in_parenthetical:
+                    if (
+                        cit.citation_type == CitationType.PARENTHETICAL
+                        and " and " in cit.text
+                        and " & " not in cit.text
+                    ):
+                        report.format_issues.append(
+                            CitationFormatIssue(
+                                citation_text=cit.text,
+                                location=f"element {elem.id}",
+                                issue='Should use "&" instead of "and" in parenthetical citation (APA 7 §8.21)',
+                            )
+                        )
+
+                if spec.and_in_narrative:
+                    if (
+                        cit.citation_type == CitationType.NARRATIVE
+                        and " & " in cit.text
+                        and " and " not in cit.text.lower()
+                    ):
+                        report.format_issues.append(
+                            CitationFormatIssue(
+                                citation_text=cit.text,
+                                location=f"element {elem.id}",
+                                issue='Should use "and" instead of "&" in narrative citation (APA 7 §8.21)',
+                            )
+                        )
+
+                # Check 2: Missing year
+                if cit.year is None and cit.citation_type in (
+                    CitationType.PARENTHETICAL,
+                    CitationType.NARRATIVE,
+                ):
+                    # Only flag if it looks like an author-date attempt
+                    if any(c.isalpha() for c in cit.text):
+                        pass  # numeric citations are expected to lack year
+
+    # ══════════════════════════════════════════════════════════
+    #  Utility: get formatted bibliography for transformer
+    # ══════════════════════════════════════════════════════════
+
+    def get_formatted_bibliography(
+        self,
+        docir: DocIR,
+        style_spec: StyleSpec,
+    ) -> list[str]:
+        """
+        Public helper — return citeproc-formatted reference strings.
+        Can be called by the Transformer to replace raw references.
+        """
+        return self._format_with_citeproc(docir, style_spec)

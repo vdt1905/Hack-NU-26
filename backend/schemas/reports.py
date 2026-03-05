@@ -122,6 +122,7 @@ class CitationReport(BaseModel):
     uncited_references: list[OrphanReference] = Field(default_factory=list)
     format_issues: list[CitationFormatIssue] = Field(default_factory=list)
     consistency_score: float = 0.0  # 0.0 – 100.0
+    formatted_bibliography: list[str] = Field(default_factory=list)  # citeproc-py output
 
     def compute_score(self) -> None:
         total = self.total_citations + self.total_references

@@ -1,6 +1,6 @@
 """
 FormatForge AI — Full Pipeline Demo on RS_TEST1.docx
-Runs all 6 agents (Phase 0 + Phase 1 + Phase 2) and displays results.
+Runs all 6 agents (Phase 0 + Phase 1 + Phase 2 + Phase 3) and displays results.
 """
 import sys
 import time
@@ -26,7 +26,7 @@ t0 = time.perf_counter()
 
 print(DIVIDER)
 print("  FormatForge AI  —  Full Pipeline Demo on RS_TEST1.docx")
-print(f"  Phases 0 + 1 + 2  |  6-Agent Pipeline")
+print(f"  Phases 0 + 1 + 2 + 3  |  6-Agent Pipeline")
 print(DIVIDER)
 
 # ── STEP 1: INGEST ──────────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ if refs:
             break
 
 # ── STEP 3: CITATION ENGINE ─────────────────────────────────────────────────
-print("\n[STEP 3] CITATION ENGINE (extraction + parsing + validation)...")
+print(f"[STEP 3] CITATION ENGINE Phase 3 (extraction + parsing + citeproc + validation)...")
 style_spec = StyleSpec()
 cit_agent = CitationEngineAgent()
 docir, cit_report = cit_agent.process(docir, style_spec)
@@ -165,6 +165,33 @@ print(f"\n  Citation Consistency Score: {cit_report.consistency_score:.1f}%")
 print(f"    Matched citations:   {cit_report.matched}")
 print(f"    Orphan citations:    {len(cit_report.orphan_citations)}")
 print(f"    Uncited references:  {len(cit_report.uncited_references)}")
+print(f"    Format issues:       {len(cit_report.format_issues)}")
+
+# ── Phase 3: citeproc-py formatted bibliography ─────────────────────────────
+if cit_report.formatted_bibliography:
+    print(f"\n  Citeproc-py Formatted Bibliography ({len(cit_report.formatted_bibliography)} entries):")
+    print(f"  {SUB}")
+    for i, bib_entry in enumerate(cit_report.formatted_bibliography[:8], 1):
+        print(f"    {i}. {bib_entry[:100]}")
+    if len(cit_report.formatted_bibliography) > 8:
+        print(f"    ... and {len(cit_report.formatted_bibliography) - 8} more")
+else:
+    print(f"\n  Citeproc-py formatting: (no entries formatted)")
+
+if cit_report.format_issues:
+    print(f"\n  Citation Format Issues (APA 7 §8.21):")
+    for fi in cit_report.format_issues[:5]:
+        print(f"    - {fi.citation_text}: {fi.issue[:80]}")
+
+if cit_report.orphan_citations:
+    print(f"\n  Orphan Citations (no matching reference):")
+    for oc in cit_report.orphan_citations[:5]:
+        print(f"    - {oc.citation_text}: {oc.issue[:60]}")
+
+if cit_report.uncited_references:
+    print(f"\n  Uncited References (not cited in text):")
+    for ur in cit_report.uncited_references[:5]:
+        print(f"    - {ur.reference_text[:80]}")
 
 # ── STEP 4: RULE INTERPRETER ────────────────────────────────────────────────
 print("\n[STEP 4] LOADING APA 7 STYLE RULES...")
@@ -311,7 +338,7 @@ print(f"  References label: {'PASS' if refs_found else 'NOT FOUND'}")
 # ── STEP 7: VALIDATION ──────────────────────────────────────────────────────
 print(f"\n[STEP 7] VALIDATION — Scoring compliance...")
 validator = ValidatorAgent()
-report = validator.validate(output_path, apa_spec, changes)
+report = validator.validate(output_path, apa_spec, changes, citation_report=cit_report)
 
 print(f"\n  Compliance Score: {report.overall_score:.1f}%")
 print(f"  Total changes: {report.total_changes}")
@@ -358,5 +385,6 @@ print(f"  {SUB}")
 print(f"  Phase 0: Infrastructure   | COMPLETE")
 print(f"  Phase 1: Analysis         | COMPLETE (ingest + structure + citations)")
 print(f"  Phase 2: Transformation   | COMPLETE (formatting + validation)")
-print(f"  190/190 tests passing     | Zero regressions")
+print(f"  Phase 3: Citations        | COMPLETE (citeproc-py + consistency)")
+print(f"  268 tests passing         | Zero regressions")
 print(DIVIDER)

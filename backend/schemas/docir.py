@@ -121,6 +121,47 @@ class ParsedReference(BaseModel):
     publisher: Optional[str] = None
     edition: Optional[str] = None
     ref_type: Optional[str] = "article-journal"  # CSL type
+    original_number: Optional[int] = None  # For numbered references (PNAS/Vancouver)
+    formatted_apa: Optional[str] = None  # citeproc-py formatted string
+
+    def to_csl_json(self, csl_id: Optional[str] = None) -> dict:
+        """Convert to CSL-JSON dict for citeproc-py."""
+        item: dict = {"type": self.ref_type or "article-journal"}
+        if csl_id:
+            item["id"] = csl_id
+        else:
+            # Generate an id from first author + year
+            first_family = self.authors[0].family if self.authors else "unknown"
+            item["id"] = f"{first_family.lower()}-{self.year or '0000'}"
+
+        if self.authors:
+            item["author"] = [
+                {"family": a.family, "given": a.given or ""}
+                for a in self.authors
+            ]
+
+        if self.year:
+            item["issued"] = {"date-parts": [[int(self.year)]]}
+        if self.title:
+            item["title"] = self.title
+        if self.container_title:
+            item["container-title"] = self.container_title
+        if self.volume:
+            item["volume"] = self.volume
+        if self.issue:
+            item["issue"] = self.issue
+        if self.pages:
+            item["page"] = self.pages
+        if self.doi:
+            item["DOI"] = self.doi
+        if self.url:
+            item["URL"] = self.url
+        if self.publisher:
+            item["publisher"] = self.publisher
+        if self.edition:
+            item["edition"] = self.edition
+
+        return item
 
 
 # ── Table data ────────────────────────────────────────────────

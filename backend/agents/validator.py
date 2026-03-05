@@ -13,6 +13,7 @@ from typing import Optional
 from backend.schemas.reports import (
     CategoryScore,
     ChangeRecord,
+    CitationReport,
     ComplianceReport,
 )
 from backend.schemas.style_spec import StyleSpec
@@ -39,6 +40,7 @@ class ValidatorAgent:
         output_path: Path,
         style_spec: StyleSpec,
         changes: list[ChangeRecord],
+        citation_report: Optional[CitationReport] = None,
     ) -> ComplianceReport:
         """
         Validate the formatted document and produce a compliance report.
@@ -56,7 +58,9 @@ class ValidatorAgent:
         report.total_changes = len(changes)
 
         # ── Score by scanning the output document ────────────
-        categories = self._score_from_document(output_path, style_spec, changes)
+        categories = self._score_from_document(
+            output_path, style_spec, changes, citation_report
+        )
         report.categories = categories
 
         # ── Compute overall score ────────────────────────────
@@ -85,6 +89,7 @@ class ValidatorAgent:
         output_path: Path,
         style_spec: StyleSpec,
         changes: list[ChangeRecord],
+        citation_report: Optional[CitationReport] = None,
     ) -> list[CategoryScore]:
         """
         Open the formatted document and check each category against the spec.
@@ -142,14 +147,41 @@ class ValidatorAgent:
         )
         scores.append(abs_score)
 
-        # ── Citations ────────────────────────────────────────
-        cit_score = CategoryScore(
-            category="citations",
-            weight=self.CATEGORY_WEIGHTS["citations"],
-            checks_total=1,
-            checks_passed=1,
-            score=75.0,  # will be refined with CitationReport in Phase 3
-        )
+        # ── Citations (Phase 3: real scoring from CitationReport) ─
+        if citation_report and citation_report.total_citations > 0:
+            total_items = (
+                citation_report.total_citations
+                + citation_report.total_references
+            )
+            issue_count = (
+                len(citation_report.orphan_citations)
+                + len(citation_report.uncited_references)
+                + len(citation_report.format_issues)
+            )
+            cit_pct = max(0.0, (1 - issue_count / total_items) * 100) if total_items else 100.0
+            cit_issues = []
+            for oc in citation_report.orphan_citations[:5]:
+                cit_issues.append(f"Orphan: {oc.citation_text}")
+            for ur in citation_report.uncited_references[:5]:
+                cit_issues.append(f"Uncited: {ur.reference_text[:60]}")
+            for fi in citation_report.format_issues[:5]:
+                cit_issues.append(f"Format: {fi.issue[:60]}")
+            cit_score = CategoryScore(
+                category="citations",
+                weight=self.CATEGORY_WEIGHTS["citations"],
+                checks_total=total_items,
+                checks_passed=citation_report.matched,
+                score=round(cit_pct, 1),
+                issues=cit_issues,
+            )
+        else:
+            cit_score = CategoryScore(
+                category="citations",
+                weight=self.CATEGORY_WEIGHTS["citations"],
+                checks_total=1,
+                checks_passed=1,
+                score=75.0,
+            )
         scores.append(cit_score)
 
         # ── References ───────────────────────────────────────

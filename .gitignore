@@ -1,0 +1,27 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Document store (user uploads)
+documents/
+
+# ADK cache
+.adk/
+
+# Environment secrets
+.env
+*.env
+
+# SQLite session storage (runtime data, not for version control)
+agent_sessions.db
+*.db
+
+# Uploaded/test docx files
+test_upload.docx

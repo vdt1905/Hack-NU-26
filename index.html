@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document Editor Agent — API Tester</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #242836;
+      --border: #2e3348;
+      --text: #e1e4ed;
+      --text2: #8b8fa3;
+      --accent: #6c5ce7;
+      --accent2: #a29bfe;
+      --green: #00b894;
+      --red: #e17055;
+      --orange: #fdcb6e;
+      --blue: #74b9ff;
+      --radius: 10px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    .app {
+      display: grid;
+      grid-template-columns: 260px 1fr 420px;
+      height: 100vh;
+    }
+
+    /* ── Sidebar ────────────────────────────────────────── */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 20px 0;
+      overflow-y: auto;
+    }
+
+    .sidebar h1 {
+      font-size: 16px;
+      padding: 0 20px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sidebar h1 span { font-size: 20px; }
+
+    .nav-group { margin-top: 16px; }
+
+    .nav-group-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text2);
+      padding: 0 20px;
+      margin-bottom: 6px;
+    }
+
+    .nav-item {
+      padding: 8px 20px;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.15s;
+      border-left: 3px solid transparent;
+    }
+
+    .nav-item:hover { background: var(--surface2); }
+
+    .nav-item.active {
+      background: var(--surface2);
+      border-left-color: var(--accent);
+      color: var(--accent2);
+    }
+
+    .method-badge {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      min-width: 36px;
+      text-align: center;
+      font-family: monospace;
+    }
+
+    .method-GET { background: rgba(0, 184, 148, 0.15); color: var(--green); }
+    .method-POST { background: rgba(108, 92, 231, 0.15); color: var(--accent2); }
+    .method-PUT { background: rgba(253, 203, 110, 0.15); color: var(--orange); }
+    .method-DELETE { background: rgba(225, 112, 85, 0.15); color: var(--red); }
+
+    /* ── Main Panel ─────────────────────────────────────── */
+    .main {
+      padding: 30px;
+      overflow-y: auto;
+    }
+
+    .panel {
+      display: none;
+    }
+
+    .panel.active { display: block; }
+
+    .panel-header {
+      margin-bottom: 24px;
+    }
+
+    .panel-header h2 {
+      font-size: 22px;
+      margin-bottom: 4px;
+    }
+
+    .panel-header .endpoint {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 13px;
+      color: var(--text2);
+      background: var(--surface);
+      padding: 6px 12px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-top: 8px;
+    }
+
+    .panel-header .endpoint .m {
+      font-weight: 700;
+      margin-right: 6px;
+    }
+
+    /* ── Form Controls ──────────────────────────────────── */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text2);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input[type="text"], input[type="number"], textarea, select {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent);
+    }
+
+    textarea { resize: vertical; min-height: 80px; }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .form-row-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .checkbox-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 4px;
+    }
+
+    .checkbox-group label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      text-transform: none;
+      letter-spacing: 0;
+      cursor: pointer;
+      color: var(--text);
+    }
+
+    input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 16px;
+      height: 16px;
+    }
+
+    .btn {
+      padding: 10px 24px;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover { background: #5b4bd5; }
+
+    .btn-danger {
+      background: var(--red);
+      color: white;
+    }
+
+    .btn-danger:hover { opacity: 0.85; }
+
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover { background: var(--border); }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* ── Response Panel (right column) ──────────────────── */
+    .response-panel {
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .response-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .response-header h3 { font-size: 14px; }
+
+    .status-badge {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-family: monospace;
+    }
+
+    .status-2xx { background: rgba(0, 184, 148, 0.15); color: var(--green); }
+    .status-4xx { background: rgba(225, 112, 85, 0.15); color: var(--red); }
+    .status-5xx { background: rgba(225, 112, 85, 0.25); color: var(--red); }
+
+    .response-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+    }
+
+    .response-body pre {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text);
+    }
+
+    .response-time {
+      font-size: 11px;
+      color: var(--text2);
+      padding: 10px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* ── Preview box ────────────────────────────────────── */
+    .preview-frame {
+      background: white;
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-top: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+      color: #202124;
+    }
+
+    /* ── Document selector ──────────────────────────────── */
+    .doc-selector {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .doc-selector label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text2);
+      white-space: nowrap;
+    }
+
+    .doc-selector select {
+      flex: 1;
+    }
+
+    .doc-selector .btn { padding: 8px 14px; font-size: 12px; }
+
+    /* ── Chat area ──────────────────────────────────────── */
+    .chat-messages {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      max-height: 350px;
+      overflow-y: auto;
+      margin-bottom: 12px;
+      min-height: 200px;
+    }
+
+    .chat-msg {
+      margin-bottom: 12px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      max-width: 90%;
+      line-height: 1.5;
+    }
+
+    .chat-msg.user {
+      background: var(--accent);
+      color: white;
+      margin-left: auto;
+      border-bottom-right-radius: 4px;
+    }
+
+    .chat-msg.bot {
+      background: var(--surface2);
+      border-bottom-left-radius: 4px;
+    }
+
+    .chat-input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .chat-input-row input { flex: 1; }
+
+    /* ── Spinner ─────────────────────────────────────────── */
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Scrollbar ───────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Welcome ─────────────────────────────────────────── */
+    .welcome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 60vh;
+      text-align: center;
+      color: var(--text2);
+    }
+
+    .welcome h2 { font-size: 28px; color: var(--text); margin-bottom: 8px; }
+    .welcome p { font-size: 15px; max-width: 400px; }
+    .welcome .icon { font-size: 48px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ═══ SIDEBAR ═══════════════════════════════════════════════════════ -->
+  <nav class="sidebar">
+    <h1><span>📄</span> Doc Editor API</h1>
+
+    <div class="nav-group">
+      <div class="nav-group-title">General</div>
+      <div class="nav-item active" data-panel="welcome">🏠 Home</div>
+      <div class="nav-item" data-panel="health">
+        <span class="method-badge method-GET">GET</span> Health Check
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-title">AI Chat</div>
+      <div class="nav-item" data-panel="chat">
+        <span class="method-badge method-POST">POST</span> Chat
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-title">Documents</div>
+      <div class="nav-item" data-panel="list-docs">
+        <span class="method-badge method-GET">GET</span> List Documents
+      </div>
+      <div class="nav-item" data-panel="create-doc">
+        <span class="method-badge method-POST">POST</span> Create Document
+      </div>
+      <div class="nav-item" data-panel="upload-doc">
+        <span class="method-badge method-POST">POST</span> Upload Document
+      </div>
+      <div class="nav-item" data-panel="doc-info">
+        <span class="method-badge method-GET">GET</span> Document Info
+      </div>
+      <div class="nav-item" data-panel="doc-content">
+        <span class="method-badge method-GET">GET</span> Document Content
+      </div>
+      <div class="nav-item" data-panel="doc-preview">
+        <span class="method-badge method-GET">GET</span> Document Preview
+      </div>
+      <div class="nav-item" data-panel="doc-download">
+        <span class="method-badge method-GET">GET</span> Download Document
+      </div>
+      <div class="nav-item" data-panel="doc-duplicate">
+        <span class="method-badge method-POST">POST</span> Duplicate Document
+      </div>
+      <div class="nav-item" data-panel="doc-delete">
+        <span class="method-badge method-DELETE">DEL</span> Delete Document
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-title">Editing</div>
+      <div class="nav-item" data-panel="add-para">
+        <span class="method-badge method-POST">POST</span> Add Paragraph
+      </div>
+      <div class="nav-item" data-panel="edit-para">
+        <span class="method-badge method-PUT">PUT</span> Edit Paragraph
+      </div>
+      <div class="nav-item" data-panel="insert-para">
+        <span class="method-badge method-POST">POST</span> Insert Paragraph
+      </div>
+      <div class="nav-item" data-panel="delete-para">
+        <span class="method-badge method-DELETE">DEL</span> Delete Paragraph
+      </div>
+      <div class="nav-item" data-panel="add-heading">
+        <span class="method-badge method-POST">POST</span> Add Heading
+      </div>
+      <div class="nav-item" data-panel="add-table">
+        <span class="method-badge method-POST">POST</span> Add Table
+      </div>
+      <div class="nav-item" data-panel="add-bullets">
+        <span class="method-badge method-POST">POST</span> Bullet List
+      </div>
+      <div class="nav-item" data-panel="add-numbered">
+        <span class="method-badge method-POST">POST</span> Numbered List
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-title">Search & Replace</div>
+      <div class="nav-item" data-panel="search">
+        <span class="method-badge method-POST">POST</span> Search Text
+      </div>
+      <div class="nav-item" data-panel="replace">
+        <span class="method-badge method-POST">POST</span> Search & Replace
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-title">Formatting</div>
+      <div class="nav-item" data-panel="fmt-para">
+        <span class="method-badge method-PUT">PUT</span> Format Paragraph
+      </div>
+      <div class="nav-item" data-panel="fmt-style">
+        <span class="method-badge method-PUT">PUT</span> Set Style
+      </div>
+      <div class="nav-item" data-panel="fmt-align">
+        <span class="method-badge method-PUT">PUT</span> Set Alignment
+      </div>
+      <div class="nav-item" data-panel="fmt-text">
+        <span class="method-badge method-POST">POST</span> Format Text
+      </div>
+    </div>
+  </nav>
+
+  <!-- ═══ MAIN CONTENT ═════════════════════════════════════════════════ -->
+  <main class="main">
+
+    <!-- Welcome -->
+    <div class="panel active" id="p-welcome">
+      <div class="welcome">
+        <div class="icon">📄</div>
+        <h2>Document Editor Agent</h2>
+        <p>Select an endpoint from the sidebar to test the API. Make sure the server is running on <code>localhost:8080</code>.</p>
+        <br>
+        <button class="btn btn-primary" onclick="showPanel('health')">🏥 Check Server Health</button>
+      </div>
+    </div>
+
+    <!-- Health -->
+    <div class="panel" id="p-health">
+      <div class="panel-header">
+        <h2>Health Check</h2>
+        <div class="endpoint"><span class="m" style="color:var(--green)">GET</span>/health</div>
+      </div>
+      <button class="btn btn-primary" onclick="send('GET','/health')">Send Request</button>
+    </div>
+
+    <!-- Chat -->
+    <div class="panel" id="p-chat">
+      <div class="panel-header">
+        <h2>AI Chat</h2>
+        <div class="endpoint"><span class="m" style="color:var(--accent2)">POST</span>/chat</div>
+      </div>
+      <div class="form-row" style="margin-bottom:12px">
+        <div class="form-group">
+          <label>User ID</label>
+          <input type="text" id="chat-user" value="test_user" />
+        </div>
+        <div class="form-group">
+          <label>Session ID (auto if empty)</label>
+          <input type="text" id="chat-session" placeholder="auto-generated" />
+        </div>
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-row">
+        <input type="text" id="chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendChat()" />
+        <button class="btn btn-primary" onclick="sendChat()">Send</button>
+      </div>
+    </div>
+
+    <!-- List Docs -->
+    <div class="panel" id="p-list-docs">
+      <div class="panel-header">
+        <h2>List Documents</h2>
+        <div class="endpoint"><span class="m" style="color:var(--green)">GET</span>/documents</div>
+      </div>
+      <button class="btn btn-primary" onclick="send('GET','/documents')">Fetch Documents</button>
+    </div>
+
+    <!-- Create Doc -->
+    <div class="panel" id="p-create-doc">
+      <div class="panel-header">
+        <h2>Create Document</h2>
+        <div class="endpoint"><span class="m" style="color:var(--accent2)">POST</span>/documents</div>
+      </div>
+      <div class="form-group">
+        <label>Title</label>
+        <input type="text" id="create-title" placeholder="My New Document" />
+      </div>
+      <button class="btn btn-primary" onclick="send('POST','/documents',{title:$('#create-title').value})">Create</button>
+    </div>
+
+    <!-- Upload Doc -->
+    <div class="panel" id="p-upload-doc">
+      <div class="panel-header">
+        <h2>Upload Document</h2>
+        <div class="endpoint"><span class="m" style="color:var(--accent2)">POST</span>/documents/upload</div>
+      </div>
+      <div class="form-group">
+        <label>Select .docx File</label>
+        <input type="file" id="upload-file" accept=".docx" style="color:var(--text)" />
+      </div>
+      <button class="btn btn-primary" onclick="uploadFile()">Upload</button>
+    </div>
+
+    <!-- Doc Info -->
+    <div class="panel" id="p-doc-info">
+      <div class="panel-header">
+        <h2>Document Info</h2>
+        <div class="endpoint"><span class="m" style="color:var(--green)">GET</span>/documents/{filename}</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="info-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <button class="btn btn-primary" onclick="send('GET',`/documents/${$('#info-doc').value}`)">Get Info</button>
+    </div>
+
+    <!-- Doc Content -->
+    <div class="panel" id="p-doc-content">
+      <div class="panel-header">
+        <h2>Document Content</h2>
+        <div class="endpoint"><span class="m" style="color:var(--green)">GET</span>/documents/{filename}/content</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="content-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Start Index</label>
+          <input type="number" id="content-start" value="0" min="0" />
+        </div>
+        <div class="form-group">
+          <label>Limit</label>
+          <input type="number" id="content-limit" value="100" min="1" />
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="send('GET',`/documents/${$('#content-doc').value}/content?start=${$('#content-start').value}&limit=${$('#content-limit').value}`)">Get Content</button>
+    </div>
+
+    <!-- Doc Preview -->
+    <div class="panel" id="p-doc-preview">
+      <div class="panel-header">
+        <h2>Document Preview</h2>
+        <div class="endpoint"><span class="m" style="color:var(--green)">GET</span>/documents/{filename}/preview</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="preview-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <button class="btn btn-primary" onclick="fetchPreview()">Load Preview</button>
+      <div class="preview-frame" id="preview-frame" style="display:none"></div>
+    </div>
+
+    <!-- Download -->
+    <div class="panel" id="p-doc-download">
+      <div class="panel-header">
+        <h2>Download Document</h2>
+        <div class="endpoint"><span class="m" style="color:var(--green)">GET</span>/documents/{filename}/download</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="download-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <button class="btn btn-primary" onclick="downloadDoc()">⬇ Download</button>
+    </div>
+
+    <!-- Duplicate -->
+    <div class="panel" id="p-doc-duplicate">
+      <div class="panel-header">
+        <h2>Duplicate Document</h2>
+        <div class="endpoint"><span class="m" style="color:var(--accent2)">POST</span>/documents/{filename}/duplicate</div>
+      </div>
+      <div class="doc-selector">
+        <label>Source:</label>
+        <select id="dup-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-group">
+        <label>New Filename</label>
+        <input type="text" id="dup-name" placeholder="Copy_of_Document.docx" />
+      </div>
+      <button class="btn btn-primary" onclick="send('POST',`/documents/${$('#dup-doc').value}/duplicate`,{new_filename:$('#dup-name').value})">Duplicate</button>
+    </div>
+
+    <!-- Delete Doc -->
+    <div class="panel" id="p-doc-delete">
+      <div class="panel-header">
+        <h2>Delete Document</h2>
+        <div class="endpoint"><span class="m" style="color:var(--red)">DELETE</span>/documents/{filename}</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="del-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <button class="btn btn-danger" onclick="if(confirm('Delete this document permanently?'))send('DELETE',`/documents/${$('#del-doc').value}`)">🗑 Delete</button>
+    </div>
+
+    <!-- Add Paragraph -->
+    <div class="panel" id="p-add-para">
+      <div class="panel-header">
+        <h2>Add Paragraph</h2>
+        <div class="endpoint"><span class="m" style="color:var(--accent2)">POST</span>/documents/{filename}/paragraphs</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="addp-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-group">
+        <label>Text</label>
+        <textarea id="addp-text" placeholder="Enter paragraph text..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Style</label>
+        <select id="addp-style">
+          <option>Normal</option><option>Heading 1</option><option>Heading 2</option>
+          <option>Heading 3</option><option>List Bullet</option><option>List Number</option>
+          <option>Quote</option><option>Title</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="send('POST',`/documents/${$('#addp-doc').value}/paragraphs`,{text:$('#addp-text').value,style:$('#addp-style').value})">Add Paragraph</button>
+    </div>
+
+    <!-- Edit Paragraph -->
+    <div class="panel" id="p-edit-para">
+      <div class="panel-header">
+        <h2>Edit Paragraph</h2>
+        <div class="endpoint"><span class="m" style="color:var(--orange)">PUT</span>/documents/{filename}/paragraphs/{index}</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="editp-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-group">
+        <label>Paragraph Index</label>
+        <input type="number" id="editp-idx" value="0" min="0" />
+      </div>
+      <div class="form-group">
+        <label>New Text</label>
+        <textarea id="editp-text" placeholder="Replace paragraph text with..."></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="send('PUT',`/documents/${$('#editp-doc').value}/paragraphs/${$('#editp-idx').value}`,{new_text:$('#editp-text').value})">Save</button>
+    </div>
+
+    <!-- Insert Paragraph -->
+    <div class="panel" id="p-insert-para">
+      <div class="panel-header">
+        <h2>Insert Paragraph After</h2>
+        <div class="endpoint"><span class="m" style="color:var(--accent2)">POST</span>/documents/{filename}/paragraphs/{index}/insert</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="insp-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-group">
+        <label>Insert After Index</label>
+        <input type="number" id="insp-idx" value="0" min="0" />
+      </div>
+      <div class="form-group">
+        <label>Text</label>
+        <textarea id="insp-text" placeholder="Paragraph text..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Style</label>
+        <select id="insp-style">
+          <option>Normal</option><option>Heading 1</option><option>Heading 2</option>
+          <option>Heading 3</option><option>List Bullet</option><option>List Number</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="send('POST',`/documents/${$('#insp-doc').value}/paragraphs/${$('#insp-idx').value}/insert`,{text:$('#insp-text').value,style:$('#insp-style').value})">Insert</button>
+    </div>
+
+    <!-- Delete Paragraph -->
+    <div class="panel" id="p-delete-para">
+      <div class="panel-header">
+        <h2>Delete Paragraph</h2>
+        <div class="endpoint"><span class="m" style="color:var(--red)">DELETE</span>/documents/{filename}/paragraphs/{index}</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="delp-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-group">
+        <label>Paragraph Index</label>
+        <input type="number" id="delp-idx" value="0" min="0" />
+      </div>
+      <button class="btn btn-danger" onclick="send('DELETE',`/documents/${$('#delp-doc').value}/paragraphs/${$('#delp-idx').value}`)">Delete Paragraph</button>
+    </div>
+
+    <!-- Add Heading -->
+    <div class="panel" id="p-add-heading">
+      <div class="panel-header">
+        <h2>Add Heading</h2>
+        <div class="endpoint"><span class="m" style="color:var(--accent2)">POST</span>/documents/{filename}/headings</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="addh-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-group">
+        <label>Heading Text</label>
+        <input type="text" id="addh-text" placeholder="My Heading" />
+      </div>
+      <div class="form-group">
+        <label>Level (1-4)</label>
+        <select id="addh-level"><option>1</option><option>2</option><option>3</option><option>4</option></select>
+      </div>
+      <button class="btn btn-primary" onclick="send('POST',`/documents/${$('#addh-doc').value}/headings`,{text:$('#addh-text').value,level:+$('#addh-level').value})">Add Heading</button>
+    </div>
+
+    <!-- Add Table -->
+    <div class="panel" id="p-add-table">
+      <div class="panel-header">
+        <h2>Add Table</h2>
+        <div class="endpoint"><span class="m" style="color:var(--accent2)">POST</span>/documents/{filename}/tables</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="addt-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Rows</label>
+          <input type="number" id="addt-rows" value="3" min="1" />
+        </div>
+        <div class="form-group">
+          <label>Columns</label>
+          <input type="number" id="addt-cols" value="3" min="1" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Data (JSON 2D array, optional)</label>
+        <textarea id="addt-data" placeholder='[["Name","Age"],["Alice","30"],["Bob","25"]]'></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="addTable()">Add Table</button>
+    </div>
+
+    <!-- Bullet List -->
+    <div class="panel" id="p-add-bullets">
+      <div class="panel-header">
+        <h2>Add Bullet List</h2>
+        <div class="endpoint"><span class="m" style="color:var(--accent2)">POST</span>/documents/{filename}/lists/bullet</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="bl-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-group">
+        <label>Items (one per line)</label>
+        <textarea id="bl-items" placeholder="First item&#10;Second item&#10;Third item"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="send('POST',`/documents/${$('#bl-doc').value}/lists/bullet`,{items:$('#bl-items').value.split('\\n').filter(Boolean)})">Add Bullet List</button>
+    </div>
+
+    <!-- Numbered List -->
+    <div class="panel" id="p-add-numbered">
+      <div class="panel-header">
+        <h2>Add Numbered List</h2>
+        <div class="endpoint"><span class="m" style="color:var(--accent2)">POST</span>/documents/{filename}/lists/numbered</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="nl-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-group">
+        <label>Items (one per line)</label>
+        <textarea id="nl-items" placeholder="Step one&#10;Step two&#10;Step three"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="send('POST',`/documents/${$('#nl-doc').value}/lists/numbered`,{items:$('#nl-items').value.split('\\n').filter(Boolean)})">Add Numbered List</button>
+    </div>
+
+    <!-- Search -->
+    <div class="panel" id="p-search">
+      <div class="panel-header">
+        <h2>Search Text</h2>
+        <div class="endpoint"><span class="m" style="color:var(--accent2)">POST</span>/documents/{filename}/search</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="search-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-group">
+        <label>Search Query</label>
+        <input type="text" id="search-q" placeholder="Text to find..." />
+      </div>
+      <div class="form-group">
+        <div class="checkbox-group">
+          <label><input type="checkbox" id="search-case" /> Case Sensitive</label>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="send('POST',`/documents/${$('#search-doc').value}/search`,{query:$('#search-q').value,case_sensitive:$('#search-case').checked})">Search</button>
+    </div>
+
+    <!-- Replace -->
+    <div class="panel" id="p-replace">
+      <div class="panel-header">
+        <h2>Search & Replace</h2>
+        <div class="endpoint"><span class="m" style="color:var(--accent2)">POST</span>/documents/{filename}/replace</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="repl-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Find</label>
+          <input type="text" id="repl-find" placeholder="old text" />
+        </div>
+        <div class="form-group">
+          <label>Replace With</label>
+          <input type="text" id="repl-with" placeholder="new text" />
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="checkbox-group">
+          <label><input type="checkbox" id="repl-case" /> Case Sensitive</label>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="send('POST',`/documents/${$('#repl-doc').value}/replace`,{find_text:$('#repl-find').value,replace_with:$('#repl-with').value,case_sensitive:$('#repl-case').checked})">Replace All</button>
+    </div>
+
+    <!-- Format Paragraph -->
+    <div class="panel" id="p-fmt-para">
+      <div class="panel-header">
+        <h2>Format Paragraph</h2>
+        <div class="endpoint"><span class="m" style="color:var(--orange)">PUT</span>/documents/{filename}/paragraphs/{index}/format</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="fmtp-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-group">
+        <label>Paragraph Index</label>
+        <input type="number" id="fmtp-idx" value="0" min="0" />
+      </div>
+      <div class="form-group">
+        <label>Toggles</label>
+        <div class="checkbox-group">
+          <label><input type="checkbox" id="fmtp-bold" /> Bold</label>
+          <label><input type="checkbox" id="fmtp-italic" /> Italic</label>
+          <label><input type="checkbox" id="fmtp-underline" /> Underline</label>
+          <label><input type="checkbox" id="fmtp-strike" /> Strikethrough</label>
+        </div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group">
+          <label>Font Size (pt)</label>
+          <input type="number" id="fmtp-size" placeholder="e.g. 14" />
+        </div>
+        <div class="form-group">
+          <label>Font Name</label>
+          <input type="text" id="fmtp-font" placeholder="e.g. Arial" />
+        </div>
+        <div class="form-group">
+          <label>Font Color (hex)</label>
+          <input type="text" id="fmtp-color" placeholder="e.g. FF0000" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Alignment</label>
+          <select id="fmtp-align"><option value="">—</option><option>left</option><option>center</option><option>right</option><option>justify</option></select>
+        </div>
+        <div class="form-group">
+          <label>Style</label>
+          <select id="fmtp-style">
+            <option value="">—</option><option>Normal</option><option>Heading 1</option><option>Heading 2</option><option>Heading 3</option>
+            <option>List Bullet</option><option>List Number</option><option>Quote</option><option>Title</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="formatPara()">Apply Format</button>
+    </div>
+
+    <!-- Set Style -->
+    <div class="panel" id="p-fmt-style">
+      <div class="panel-header">
+        <h2>Set Paragraph Style</h2>
+        <div class="endpoint"><span class="m" style="color:var(--orange)">PUT</span>/documents/{filename}/paragraphs/{index}/style</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="sty-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Paragraph Index</label>
+          <input type="number" id="sty-idx" value="0" min="0" />
+        </div>
+        <div class="form-group">
+          <label>Style</label>
+          <select id="sty-val">
+            <option>Normal</option><option>Heading 1</option><option>Heading 2</option><option>Heading 3</option><option>Heading 4</option>
+            <option>List Bullet</option><option>List Number</option><option>Quote</option><option>Title</option><option>Subtitle</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="send('PUT',`/documents/${$('#sty-doc').value}/paragraphs/${$('#sty-idx').value}/style`,{style:$('#sty-val').value})">Set Style</button>
+    </div>
+
+    <!-- Set Alignment -->
+    <div class="panel" id="p-fmt-align">
+      <div class="panel-header">
+        <h2>Set Paragraph Alignment</h2>
+        <div class="endpoint"><span class="m" style="color:var(--orange)">PUT</span>/documents/{filename}/paragraphs/{index}/align</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="aln-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Paragraph Index</label>
+          <input type="number" id="aln-idx" value="0" min="0" />
+        </div>
+        <div class="form-group">
+          <label>Alignment</label>
+          <select id="aln-val"><option>left</option><option>center</option><option>right</option><option>justify</option></select>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="send('PUT',`/documents/${$('#aln-doc').value}/paragraphs/${$('#aln-idx').value}/align`,{alignment:$('#aln-val').value})">Set Alignment</button>
+    </div>
+
+    <!-- Format Text -->
+    <div class="panel" id="p-fmt-text">
+      <div class="panel-header">
+        <h2>Format Matching Text</h2>
+        <div class="endpoint"><span class="m" style="color:var(--accent2)">POST</span>/documents/{filename}/format-text</div>
+      </div>
+      <div class="doc-selector">
+        <label>Document:</label>
+        <select id="fmtt-doc" class="doc-select"></select>
+        <button class="btn btn-secondary" onclick="refreshDocs()">↻</button>
+      </div>
+      <div class="form-group">
+        <label>Search Text</label>
+        <input type="text" id="fmtt-search" placeholder="Text to format..." />
+      </div>
+      <div class="form-group">
+        <label>Toggles</label>
+        <div class="checkbox-group">
+          <label><input type="checkbox" id="fmtt-bold" /> Bold</label>
+          <label><input type="checkbox" id="fmtt-italic" /> Italic</label>
+          <label><input type="checkbox" id="fmtt-underline" /> Underline</label>
+          <label><input type="checkbox" id="fmtt-strike" /> Strikethrough</label>
+        </div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group">
+          <label>Font Size (pt)</label>
+          <input type="number" id="fmtt-size" placeholder="14" />
+        </div>
+        <div class="form-group">
+          <label>Font Color (hex)</label>
+          <input type="text" id="fmtt-color" placeholder="FF0000" />
+        </div>
+        <div class="form-group">
+          <label>Highlight</label>
+          <select id="fmtt-hl"><option value="">—</option><option>yellow</option><option>green</option><option>pink</option><option>blue</option><option>red</option><option>turquoise</option><option>gray</option></select>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="formatMatchText()">Apply Format</button>
+    </div>
+
+  </main>
+
+  <!-- ═══ RESPONSE PANEL ═══════════════════════════════════════════════ -->
+  <aside class="response-panel">
+    <div class="response-header">
+      <h3>Response</h3>
+      <span class="status-badge" id="resp-status" style="display:none"></span>
+    </div>
+    <div class="response-body" id="resp-body">
+      <pre style="color:var(--text2);text-align:center;margin-top:40%;">Responses will appear here</pre>
+    </div>
+    <div class="response-time" id="resp-time" style="display:none">
+      <span id="resp-method"></span>
+      <span id="resp-duration"></span>
+    </div>
+  </aside>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  JAVASCRIPT                                                            -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<script src="script.js"></script>
+
+</body>
+</html>

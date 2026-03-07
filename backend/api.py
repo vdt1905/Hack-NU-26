@@ -1,5 +1,5 @@
 """
-FormatForge AI — FastAPI Application
+DocLing AI — FastAPI Application
 REST API for the formatting pipeline.
 """
 

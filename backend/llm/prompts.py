@@ -1,5 +1,5 @@
 """
-FormatForge AI — LLM Prompts (Centralised)
+DocLing AI — LLM Prompts (Centralised)
 All system / user prompt templates live here.
 """
 

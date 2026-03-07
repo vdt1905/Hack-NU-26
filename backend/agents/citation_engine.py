@@ -1,5 +1,5 @@
 """
-FormatForge AI — Agent 4: Citation & Reference Engine
+DocLing AI — Agent 4: Citation & Reference Engine
 Parses references, formats them with citeproc-py, validates citation consistency.
 
 Phase 3 — Complete citation pipeline:

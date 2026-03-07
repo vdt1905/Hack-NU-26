@@ -1,5 +1,5 @@
 """
-FormatForge AI — Configuration
+DocLing AI — Configuration
 Loads settings from .env file and provides typed config.
 """
 
@@ -33,7 +33,7 @@ API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
 API_PORT: int = int(os.getenv("API_PORT", "8000"))
 
 # ----- Application Constants -----
-APP_NAME = "FormatForge AI"
+APP_NAME = "DocLing AI"
 APP_VERSION = "1.0.0"
 APP_DESCRIPTION = "Agentic Manuscript Formatting System — Agent Paperpal"
 

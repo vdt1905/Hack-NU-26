@@ -1,5 +1,5 @@
 """
-FormatForge AI — Agent 1: Ingest & Parse
+DocLing AI — Agent 1: Ingest & Parse
 Converts DOCX / PDF / TXT → DocIR JSON.
 
 Phase 1 — Full DOCX parser with:

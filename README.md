@@ -1,6 +1,6 @@
 <div align="center">
 
-# FormatForge AI
+# DocLing AI
 
 ### Agentic Academic Manuscript Formatter
 
@@ -22,7 +22,7 @@
 
 ## What It Does
 
-FormatForge AI takes a raw DOCX manuscript and automatically transforms it to match any of five major academic publication styles — **APA 7, IEEE, Vancouver, MLA, or Chicago** — while simultaneously generating a complete, compilable **LaTeX source file**.
+DocLing AI takes a raw DOCX manuscript and automatically transforms it to match any of five major academic publication styles — **APA 7, IEEE, Vancouver, MLA, or Chicago** — while simultaneously generating a complete, compilable **LaTeX source file**.
 
 The system combines a **deterministic six-agent pipeline** for reliable DOCX formatting with an **LLM-powered LaTeX generation engine**, plus a conversational **MCP Document Editor Agent** for natural-language post‑processing.
 

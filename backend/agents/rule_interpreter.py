@@ -1,5 +1,5 @@
 """
-FormatForge AI — Agent 2: Rule Interpreter  (Phase 4 — Full Implementation)
+DocLing AI — Agent 2: Rule Interpreter  (Phase 4 — Full Implementation)
 Converts style guideline text / URL → StyleSpec JSON using LLM.
 Also loads hardcoded StyleSpec files as ground truth.
 

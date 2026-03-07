@@ -1,5 +1,5 @@
 """
-FormatForge AI — Agent 0: Orchestrator
+DocLing AI — Agent 0: Orchestrator
 Main pipeline controller. Routes tasks to agents and maintains shared state.
 """
 

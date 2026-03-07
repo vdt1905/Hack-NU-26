@@ -1,5 +1,5 @@
 """
-FormatForge AI — Unified Pipeline Router
+DocLing AI — Unified Pipeline Router
 ==========================================
 Full pipeline:  Static Formatting (Orchestrator) → LLM LaTeX Generation (Agno/Groq)
 Exposes SSE streaming endpoint: POST /api/v2/pipeline/stream
@@ -349,7 +349,7 @@ async def pipeline_stream(
     model: str = Form("llama-3.3-70b-versatile"),
 ):
     """
-    Full FormatForge pipeline via Server-Sent Events:
+    Full DocLing AI pipeline via Server-Sent Events:
       Stage 1 — Static formatting engine (6-agent Orchestrator)
       Stage 2 — LLM-based LaTeX generation (Agno + Groq)
     """

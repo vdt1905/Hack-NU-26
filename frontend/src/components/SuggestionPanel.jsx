@@ -36,7 +36,7 @@ export function SuggestionPanel() {
             <div className="p-4 border-b border-[var(--color-surface-200)] bg-[var(--color-surface-50)] flex items-center justify-between">
                 <h2 className="font-semibold text-[var(--color-text-main)] flex items-center gap-2">
                     <Bot className="h-5 w-5 text-[var(--color-primary-600)]" />
-                    FormatForge Agent
+                    DocLing Agent
                 </h2>
                 <Badge variant={validationSummary.score === 100 ? 'success' : 'default'}>
                     {suggestions.length} issues

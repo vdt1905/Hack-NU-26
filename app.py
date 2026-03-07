@@ -1,5 +1,5 @@
 """
-FormatForge AI — Streamlit Frontend
+DocLing AI — Streamlit Frontend
 Upload manuscript → Select style → Format → Download.
 """
 
@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 # ── Page config ──────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="FormatForge AI — Agent Paperpal",
+    page_title="DocLing AI — Agent Paperpal",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -44,7 +44,7 @@ st.markdown("""
 
 # ── Header ───────────────────────────────────────────────────
 
-st.markdown('<h1 class="main-header">🎓 FormatForge AI — Agent Paperpal</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">🎓 DocLing AI — Agent Paperpal</h1>', unsafe_allow_html=True)
 st.markdown(
     '<p style="text-align:center;color:gray;">Agentic Manuscript Formatting System | HackaMined 2026</p>',
     unsafe_allow_html=True,

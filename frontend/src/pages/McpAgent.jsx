@@ -41,7 +41,7 @@ export function McpAgent() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             message: contextMsg,
-                            user_id: 'formatforge_user',
+                            user_id: 'docling_user',
                             session_id: mcpSessionId || undefined,
                         }),
                     });
@@ -130,7 +130,7 @@ export function McpAgent() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message: userMsg,
-                    user_id: 'formatforge_user',
+                    user_id: 'docling_user',
                     session_id: mcpSessionId || undefined,
                 }),
             });

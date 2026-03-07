@@ -1,4 +1,4 @@
-# FormatForge AI — Comprehensive Technical Documentation
+# DocLing AI — Comprehensive Technical Documentation
 
 **Project Codename:** Docling  
 **Event:** HackaMineD 2026 (Cactus Communications / Paperpal)  
@@ -43,7 +43,7 @@
 
 ## 1. Executive Summary
 
-FormatForge AI is an end-to-end academic manuscript formatting system that automates the tedious and error-prone process of converting research papers into publication-ready documents conforming to specific academic citation and formatting standards. The system accepts DOCX manuscripts, automatically detects their internal structure (titles, authors, abstracts, headings, references, citations), applies pixel-perfect formatting rules for the chosen academic style, and optionally generates a complete LaTeX source for typesetting.
+DocLing AI is an end-to-end academic manuscript formatting system that automates the tedious and error-prone process of converting research papers into publication-ready documents conforming to specific academic citation and formatting standards. The system accepts DOCX manuscripts, automatically detects their internal structure (titles, authors, abstracts, headings, references, citations), applies pixel-perfect formatting rules for the chosen academic style, and optionally generates a complete LaTeX source for typesetting.
 
 The platform operates through a two-stage processing pipeline:
 
@@ -1101,4 +1101,4 @@ The test suite is organized by development phase:
 
 ---
 
-*This documentation was generated through a comprehensive line-by-line analysis of the FormatForge AI codebase. All descriptions, architectural observations, and technical details are derived directly from reading the source code and are original technical documentation of the system's design and implementation.*
+*This documentation was generated through a comprehensive line-by-line analysis of the DocLing AI codebase. All descriptions, architectural observations, and technical details are derived directly from reading the source code and are original technical documentation of the system's design and implementation.*

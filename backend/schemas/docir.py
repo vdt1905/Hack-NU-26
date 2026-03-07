@@ -1,5 +1,5 @@
 """
-FormatForge AI — DocIR (Document Internal Representation) Schema
+DocLing AI — DocIR (Document Internal Representation) Schema
 Every document gets converted to this universal format first.
 """
 

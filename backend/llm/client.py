@@ -1,5 +1,5 @@
 """
-FormatForge AI — LLM Client Wrapper
+DocLing AI — LLM Client Wrapper
 Unified interface for OpenAI / Groq / Ollama.
 LLM is ONLY used for:
   1. Converting guideline prose → StyleSpec JSON

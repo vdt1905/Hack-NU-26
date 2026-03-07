@@ -1,5 +1,5 @@
 """
-FormatForge AI — Paragraph Merger
+DocLing AI — Paragraph Merger
 Detects and merges fragmented paragraphs from PDF-to-DOCX conversions.
 
 PDF-to-DOCX tools often create one paragraph per visible line, yielding

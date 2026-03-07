@@ -1,5 +1,5 @@
 """
-FormatForge AI — Citation Parser Utilities
+DocLing AI — Citation Parser Utilities
 Regex patterns for extracting in-text citations.
 
 Supports:

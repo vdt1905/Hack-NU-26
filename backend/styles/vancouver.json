@@ -1,0 +1,173 @@
+{
+  "style_name": "Vancouver (ICMJE)",
+  "style_id": "vancouver",
+  "csl_style": "vancouver",
+
+  "page_layout": {
+    "margin_top_inches": 1.0,
+    "margin_bottom_inches": 1.0,
+    "margin_left_inches": 1.0,
+    "margin_right_inches": 1.0,
+    "page_width_inches": 8.5,
+    "page_height_inches": 11.0,
+    "orientation": "portrait"
+  },
+
+  "default_typography": {
+    "font_name": "Times New Roman",
+    "font_size_pt": 12.0,
+    "line_spacing": 2.0,
+    "line_spacing_type": "double",
+    "paragraph_alignment": "justify",
+    "first_line_indent_inches": 0.0,
+    "space_after_paragraph_pt": 0.0,
+    "space_before_paragraph_pt": 0.0
+  },
+
+  "title_page": {
+    "required": true,
+    "title": {
+      "font_size_pt": 14.0,
+      "bold": true,
+      "italic": false,
+      "alignment": "center",
+      "position": "upper third of page"
+    },
+    "author_name": {
+      "font_size_pt": 12.0,
+      "bold": false,
+      "italic": false,
+      "alignment": "center",
+      "position": "below title"
+    },
+    "affiliation": {
+      "font_size_pt": 12.0,
+      "bold": false,
+      "italic": false,
+      "alignment": "center"
+    },
+    "course_info": null,
+    "instructor": null,
+    "date": null
+  },
+
+  "abstract": {
+    "label": "Abstract",
+    "label_bold": true,
+    "label_alignment": "left",
+    "paragraph_indent": false,
+    "max_words": 250,
+    "keywords_label": "Keywords:",
+    "keywords_italic": false,
+    "keywords_indent": false
+  },
+
+  "headings": {
+    "level_1": {
+      "alignment": "left",
+      "bold": true,
+      "italic": false,
+      "font_size_pt": 14.0,
+      "case": "upper",
+      "standalone_line": true,
+      "ends_with_period": false,
+      "indent_inches": null,
+      "description": "Flush Left, Bold, Uppercase"
+    },
+    "level_2": {
+      "alignment": "left",
+      "bold": true,
+      "italic": false,
+      "font_size_pt": 12.0,
+      "case": "title_case",
+      "standalone_line": true,
+      "ends_with_period": false,
+      "indent_inches": null,
+      "description": "Flush Left, Bold, Title Case"
+    },
+    "level_3": {
+      "alignment": "left",
+      "bold": false,
+      "italic": true,
+      "font_size_pt": 12.0,
+      "case": "sentence_case",
+      "standalone_line": true,
+      "ends_with_period": false,
+      "indent_inches": null,
+      "description": "Flush Left, Italic, Sentence Case"
+    },
+    "level_4": {
+      "alignment": "left",
+      "bold": false,
+      "italic": true,
+      "font_size_pt": 12.0,
+      "case": "sentence_case",
+      "standalone_line": false,
+      "ends_with_period": true,
+      "indent_inches": 0.5,
+      "description": "Indented, Italic, Sentence Case, Period."
+    },
+    "level_5": {
+      "alignment": "left",
+      "bold": false,
+      "italic": false,
+      "font_size_pt": 12.0,
+      "case": "sentence_case",
+      "standalone_line": false,
+      "ends_with_period": true,
+      "indent_inches": 0.5,
+      "description": "Indented, Roman, Sentence Case, Period."
+    }
+  },
+
+  "running_head": {
+    "enabled": false,
+    "content": "",
+    "alignment": "left",
+    "page_number_alignment": "right",
+    "font_size_pt": 12.0,
+    "all_caps": false,
+    "max_characters": 50
+  },
+
+  "references": {
+    "section_label": "References",
+    "label_bold": true,
+    "label_alignment": "left",
+    "entry_indent_type": "none",
+    "hanging_indent_inches": 0.0,
+    "order": "order_of_appearance",
+    "line_spacing": 2.0,
+    "csl_style_name": "vancouver"
+  },
+
+  "tables": {
+    "number_label": "Table",
+    "number_bold": true,
+    "number_italic": false,
+    "title_italic": false,
+    "title_below_number": true,
+    "note_prefix": "Note.",
+    "note_italic_prefix": false,
+    "horizontal_lines_only": true
+  },
+
+  "figures": {
+    "number_label": "Figure",
+    "number_bold": true,
+    "number_italic": false,
+    "title_italic": false,
+    "title_below_number": true,
+    "note_prefix": "Note.",
+    "note_italic_prefix": false
+  },
+
+  "in_text_citations": {
+    "style": "numeric",
+    "parenthetical_format": "(1)",
+    "narrative_format": "1",
+    "et_al_threshold": 7,
+    "ampersand_in_parenthetical": false,
+    "and_in_narrative": false
+  }
+}

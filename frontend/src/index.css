@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+@theme {
+  /* Earthy Palette */
+  --color-primary-50: #fdfceb;
+  /* Very light cornsilk */
+  --color-primary-100: #dda15e;
+  /* Light Caramel */
+  --color-primary-500: #606c38;
+  /* Olive Leaf */
+  --color-primary-600: #283618;
+  /* Black Forest (Darker Olive) */
+  --color-primary-900: #bc6c25;
+  /* Copper */
+
+  --color-surface-50: #fefae0;
+  /* Cornsilk (Base Background) */
+  --color-surface-100: #f4efd3;
+  /* Slightly darker cornsilk for offset areas */
+  --color-surface-200: #e6dfbd;
+  /* Borders and hover states */
+  --color-surface-300: #d4caa3;
+  /* Deeper borders */
+
+  --color-text-main: #283618;
+  /* Black Forest for main text */
+  --color-text-muted: #606c38;
+  /* Olive Leaf for muted text */
+
+  --shadow-subtle: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-card: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-floating: 0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+
+  --radius-md: 0.75rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 2rem;
+  /* Much rounder */
+  --font-sans: "Karla", ui-sans-serif, system-ui, sans-serif;
+  --font-anton: "Anton", sans-serif;
+
+  --animate-shimmer: shimmer 2s infinite linear;
+
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+
+    100% {
+      transform: translateX(100%);
+    }
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-[var(--color-surface-50)] text-[var(--color-text-main)] antialiased;
+    font-family: var(--font-sans);
+  }
+}
+
+@layer utilities {
+  .notion-card {
+    @apply bg-white rounded-[var(--radius-lg)] border border-[var(--color-surface-200)] shadow-[var(--shadow-card)] transition-shadow duration-200;
+  }
+
+  .notion-card:hover {
+    @apply shadow-[var(--shadow-floating)];
+  }
+
+  .notion-button-primary {
+    @apply bg-[var(--color-primary-600)] text-white hover:bg-[var(--color-primary-500)] rounded-[var(--radius-md)] px-4 py-2 font-medium transition-colors shadow-sm;
+  }
+
+  .notion-button-secondary {
+    @apply bg-white text-[var(--color-text-main)] border border-[var(--color-surface-300)] hover:bg-[var(--color-surface-100)] rounded-[var(--radius-md)] px-4 py-2 font-medium transition-colors shadow-[var(--shadow-subtle)];
+  }
+
+  .notion-input {
+    @apply w-full rounded-[var(--radius-md)] border border-[var(--color-surface-300)] bg-white text-[var(--color-text-main)] px-3 py-2 text-sm placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-500)] focus:border-transparent transition-shadow;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-300);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}

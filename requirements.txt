@@ -18,7 +18,7 @@ pydantic-settings==2.7.1
 
 # LLM Clients
 openai==1.59.7
-groq==0.13.1
+groq>=1.0.0
 
 # Frontend
 streamlit==1.41.1
@@ -32,3 +32,13 @@ httpx==0.28.1
 
 # Testing
 pytest==8.3.4
+
+# Agno LLM Agent Pipeline (vdt branch)
+agno>=2.5.0
+PyPDF2>=3.0.0
+pyspellchecker>=0.8.0
+
+# MCP Server & Doc Editor Agent (mcp-server branch)
+mcp>=1.0.0
+pdfplumber>=0.10.0
+sqlalchemy>=2.0.0

@@ -82,6 +82,30 @@ Extract all formatting rules into this JSON structure:
 Return ONLY valid JSON."""
 
 
+# ── Agent 2: Rule Interpreter — Refinement pass ─────────────
+
+RULE_INTERPRETER_REFINEMENT_USER = """\
+You previously extracted formatting rules for {style_name} into this draft JSON:
+---
+{draft_json}
+---
+
+Here is a summary of the original guidelines for reference:
+---
+{guideline_summary}
+---
+
+Review the draft JSON for accuracy and completeness:
+1. Fix any values that contradict the guidelines.
+2. Fill in any null fields if the guidelines provide the information.
+3. Ensure numeric values (margins, font sizes, spacing) are correct numbers, not strings.
+4. Ensure boolean fields are true/false, not strings.
+5. Make sure heading levels are correctly differentiated.
+6. Verify citation style matches the guidelines (author-date, numeric, or note).
+
+Return the CORRECTED and COMPLETE JSON. Return ONLY valid JSON."""
+
+
 # ── Agent 3: Structure Detector — Classify ambiguous paragraphs ──
 
 STRUCTURE_CLASSIFY_SYSTEM = """\

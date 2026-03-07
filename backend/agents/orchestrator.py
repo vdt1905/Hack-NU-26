@@ -40,7 +40,7 @@ class Orchestrator:
         from backend.agents.validator import ValidatorAgent
 
         self.ingest = IngestAgent()
-        self.structure_detector = StructureDetectorAgent()
+        self.structure_detector = StructureDetectorAgent(use_llm=True)
         self.rule_interpreter = RuleInterpreterAgent()
         self.citation_engine = CitationEngineAgent()
         self.transformer = TransformerAgent()
@@ -53,6 +53,7 @@ class Orchestrator:
         input_path: Path,
         style_id: str = "apa7",
         guidelines_text: Optional[str] = None,
+        guidelines_url: Optional[str] = None,
         output_dir: Optional[Path] = None,
     ) -> FormatResult:
         """
@@ -62,6 +63,7 @@ class Orchestrator:
             input_path: Path to the input manuscript (.docx / .pdf / .txt).
             style_id: Style identifier (e.g. "apa7").
             guidelines_text: Optional raw guideline text for LLM interpretation.
+            guidelines_url: Optional URL to a style guide page.
             output_dir: Directory for output files.
 
         Returns:
@@ -80,6 +82,7 @@ class Orchestrator:
             style_spec: StyleSpec = self.rule_interpreter.get_style_spec(
                 style_id=style_id,
                 guidelines_text=guidelines_text,
+                guidelines_url=guidelines_url,
             )
 
             # ── Step 3: Structure Detection ──────────────────
@@ -104,6 +107,7 @@ class Orchestrator:
                 style_spec=style_spec,
                 input_path=input_path,
                 output_dir=output_dir,
+                formatted_bibliography=citation_report.formatted_bibliography,
             )
             result.output_filename = str(output_path)
 
@@ -113,6 +117,7 @@ class Orchestrator:
                 output_path=output_path,
                 style_spec=style_spec,
                 changes=changes,
+                citation_report=citation_report,
             )
             result.compliance_report = compliance
 

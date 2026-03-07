@@ -145,14 +145,23 @@ class StructureDetectorAgent:
             return docir
 
         # Multi-pass detection (order matters)
+        self._pass0_clean_content(elements)
         self._pass1_style_names(elements)
         self._pass2_section_keywords(elements)
         self._pass3_reference_section(elements)
         self._pass4_title_detection(elements)
         self._pass5_author_affiliation(elements)
         self._pass6_abstract_detection(elements)
+        self._pass7d_page_artifacts(elements)       # before keywords — suppresses misclassifiable artifacts
         self._pass7_keywords_detection(elements)
+        self._pass7b_caption_detection(elements)
+        self._pass7c_front_matter_zone_correction(elements)
         self._pass8_fill_remaining(elements)
+
+        # LLM batch correction — correct misclassified fragments
+        if self.use_llm:
+            self._pass8b_llm_batch_correction(elements)
+
         self._pass9_extract_citations(elements)
 
         if self.use_llm:
@@ -165,6 +174,25 @@ class StructureDetectorAgent:
             labelled, total, 100 * labelled / total if total else 0,
         )
         return docir
+
+    # ── Pass 0: Clean invisible Unicode from element content ──
+
+    _INVISIBLE_RE = re.compile(
+        r'[\u200b\u200c\u200d\u200e\u200f\ufeff\u00ad\u2028\u2029\u034f\u061c\u180e\ufff9\ufffa\ufffb]'
+    )
+
+    def _pass0_clean_content(self, elements: list[DocElement]) -> None:
+        """Strip zero-width and invisible Unicode characters from all element content."""
+        count = 0
+        for elem in elements:
+            if elem.type != ElementType.PARAGRAPH:
+                continue
+            cleaned = self._INVISIBLE_RE.sub('', elem.content)
+            if cleaned != elem.content:
+                elem.content = cleaned
+                count += 1
+        if count:
+            logger.info("Content cleanup: removed invisible chars from %d elements", count)
 
     # ── Pass 1: Word style-name detection ────────────────────
 
@@ -355,6 +383,7 @@ class StructureDetectorAgent:
         first_heading_idx = self._first_section_index(elements, after=title_end + 1)
         author_zone_end = min(title_end + 30, first_heading_idx)
 
+        consecutive_misses = 0
         for i in range(title_end + 1, author_zone_end):
             elem = elements[i]
             if elem.type != ElementType.PARAGRAPH or elem.role != ElementRole.UNKNOWN:
@@ -363,34 +392,61 @@ class StructureDetectorAgent:
             if not text:
                 continue
 
+            matched = False
+
             # Author names (short, comma-separated, proper nouns)
             if self._looks_like_author(text):
                 elem.role = ElementRole.AUTHOR_INFO
                 elem.role_confidence = 0.60
-                continue
+                matched = True
 
-            # Affiliation (university / department / institute …)
-            if AFFILIATION_RE.search(text):
+            # Comma-starting fragments = continuation of author list
+            elif text.startswith(",") or text.startswith("and "):
                 elem.role = ElementRole.AUTHOR_INFO
                 elem.role_confidence = 0.55
-                continue
+                matched = True
+
+            # Affiliation (university / department / institute …)
+            elif AFFILIATION_RE.search(text):
+                elem.role = ElementRole.AUTHOR_INFO
+                elem.role_confidence = 0.55
+                matched = True
 
             # Single-character superscript markers: "a", "b", "1"
-            if len(text) <= 2 and (text.isalpha() or text.isdigit()):
+            elif len(text) <= 2 and (text.isalpha() or text.isdigit()):
                 elem.role = ElementRole.AUTHOR_INFO
                 elem.role_confidence = 0.40
-                continue
+                matched = True
 
             # Editor / date metadata
-            tl = text.lower()
-            if tl.startswith("edited by") or tl.startswith("received") or tl.startswith("approved"):
+            elif re.match(
+                r"^(Edited by|Received|Approved|Accepted|Submitted|Published|"
+                r"Revised|To whom|Corresponding|\*|†)",
+                text, re.IGNORECASE,
+            ):
                 elem.role = ElementRole.AUTHOR_INFO
                 elem.role_confidence = 0.50
-                continue
+                matched = True
 
-            # Stop when we hit a long body-like paragraph
-            if len(text.split()) > 25:
-                break
+            # Email addresses or ORCID
+            elif "@" in text or "orcid" in text.lower():
+                elem.role = ElementRole.AUTHOR_INFO
+                elem.role_confidence = 0.50
+                matched = True
+
+            # Date-ending line: "..., 2014)" or "... 2023"
+            elif re.match(r".*\b\d{4}\)?\.?\s*$", text) and len(text.split()) <= 8:
+                elem.role = ElementRole.AUTHOR_INFO
+                elem.role_confidence = 0.45
+                matched = True
+
+            if matched:
+                consecutive_misses = 0
+            else:
+                consecutive_misses += 1
+                # Stop after 2 consecutive non-matching paragraphs
+                if consecutive_misses >= 2:
+                    break
 
     # ── Pass 6: Abstract detection ───────────────────────────
 
@@ -461,6 +517,232 @@ class StructureDetectorAgent:
                     elem.role = ElementRole.KEYWORDS
                     elem.role_confidence = 0.60
 
+    # ── Pass 7b: Figure / Table caption detection ────────────
+
+    # Regex patterns for captions
+    _FIGURE_CAPTION_RE = re.compile(
+        r"^(?:Fig\.?|Figure)\s*\d+", re.IGNORECASE,
+    )
+    _TABLE_CAPTION_RE = re.compile(
+        r"^(?:Table|Tab\.?)\s*\d+", re.IGNORECASE,
+    )
+
+    def _pass7b_caption_detection(self, elements: list[DocElement]) -> None:
+        """Detect figure and table captions (e.g. 'Fig. 1. …', 'Table 2. …')."""
+        for elem in elements:
+            if elem.type != ElementType.PARAGRAPH:
+                continue
+            # Only reassign UNKNOWN or BODY (pass 8 hasn't run yet, so mostly UNKNOWN)
+            if elem.role not in (ElementRole.UNKNOWN, ElementRole.BODY):
+                continue
+            text = elem.content.strip()
+            if not text:
+                continue
+
+            if self._FIGURE_CAPTION_RE.match(text):
+                elem.role = ElementRole.FIGURE_CAPTION
+                elem.role_confidence = 0.85
+            elif self._TABLE_CAPTION_RE.match(text):
+                elem.role = ElementRole.TABLE_CAPTION
+                elem.role_confidence = 0.85
+
+    # ── Pass 7c: Front-matter zone correction ────────────────
+
+    def _pass7c_front_matter_zone_correction(self, elements: list[DocElement]) -> None:
+        """
+        Correct misclassified elements in the narrow author-info zone.
+
+        Only extends author_info classification for a few elements after
+        the last detected author_info — handles comma-starting fragments,
+        dates, and superscript markers that pass 5 missed.
+        
+        Does NOT reclassify body text deeper in the document.
+        """
+        # Find the last author_info element from previous passes
+        last_author_idx = -1
+        last_title_idx = -1
+        for i, elem in enumerate(elements):
+            if elem.role == ElementRole.TITLE:
+                last_title_idx = i
+            if elem.role == ElementRole.AUTHOR_INFO:
+                last_author_idx = i
+
+        if last_author_idx < 0 and last_title_idx < 0:
+            return
+
+        start_idx = max(last_title_idx, last_author_idx) + 1
+
+        # Only extend for a small window (up to 8 elements after last author)
+        # to catch missed fragments without reclassifying body text
+        window_end = min(start_idx + 8, len(elements))
+
+        extended = 0
+        for i in range(start_idx, window_end):
+            elem = elements[i]
+            if elem.type != ElementType.PARAGRAPH:
+                continue
+            text = elem.content.strip()
+            if not text:
+                continue
+
+            # Skip elements already confidently classified
+            if elem.role_confidence >= 0.60:
+                break  # hit something confidently classified → stop extending
+
+            # Only reclassify UNKNOWN or very low-confidence body
+            if elem.role not in (ElementRole.UNKNOWN, ElementRole.BODY):
+                break
+
+            # Heuristic: author-zone continuation fragments
+            # - Starts with comma (",")
+            # - Date patterns ("December 2, 2014")
+            # - Very short (< 3 words)
+            # - Email addresses
+            words = text.split()
+            is_author_continuation = (
+                text.startswith(",") or
+                text.startswith("and ") or
+                len(words) <= 3 or
+                re.match(r".*\d{4}\)?$", text) or  # ends with year
+                "@" in text or
+                re.match(r"^(To whom|Corresponding|E-mail|Email)", text, re.IGNORECASE)
+            )
+
+            if is_author_continuation:
+                elem.role = ElementRole.AUTHOR_INFO
+                elem.role_confidence = 0.50
+                extended += 1
+            else:
+                break  # hit something that looks like real content
+
+        if extended:
+            logger.info(
+                "Front-matter zone correction: extended author_info by %d elements after idx %d",
+                extended, start_idx - 1,
+            )
+
+    # ── Pass 7d: Page artifacts (headers / footers / DOIs) ──
+
+    # Patterns for page headers/footers produced by PDF-to-DOCX tools
+    _PAGE_ARTIFACT_RE = re.compile(
+        r'(?:'
+        r'^\d{3,6}\s*\|.*(?:pnas|doi|org)'        # "5504 | www.pnas.org..."
+        r'|^www\.\w+\.org/cgi/doi'                 # "www.pnas.org/cgi/doi..."
+        r'|^\d{3,6}\s+\w+\s+et\s+al\.?\s*$'       # "5504 Alsharif et al."
+        r'|^Downloaded\s+(?:from|by)\s'             # "Downloaded from ..."
+        r'|^(?:This\s+article|Freely\s+available).*(?:www\.\w+\.org|open\s+access)'  # footnote links
+        r'|^\d{4}/pnas\.\d+'                        # "1073/pnas.1422986112" URL fragment
+        r'|^\w[\w\s]{0,30}\s+et\s+al\.?\s+(?:PNAS|Proc|Nature|Science|Cell|Lancet|BMJ|JAMA|\|)'  # "Alsharif et al. PNAS"
+        r')',
+        re.IGNORECASE,
+    )
+    # Case-sensitive: standalone ALL-CAPS word ≥5 chars (journal section headers like MICROBIOLOGY)
+    _ALLCAPS_ARTIFACT_RE = re.compile(r'^[A-Z]{5,}\s*$')
+
+    # Patterns for journal footnotes/metadata that should not appear in body text
+    _FOOTNOTE_ARTIFACT_RE = re.compile(
+        r'(?:'
+        r'^Author\s+contributions?:'                # "Author contributions: G.A...."
+        r'|^The\s+authors?\s+declare\s+no\s+(?:competing\s+)?(?:conflict|interest)'  # "The authors declare no conflict of interest"
+        r'|^This\s+article\s+is\s+a\s+\w+\s+Direct\s+Submission'  # "This article is a PNAS Direct Submission"
+        r'|^(?:\d+\s+)?To\s+whom\s+correspondence\s+should'  # "To whom correspondence..." (with or without leading digit)
+        r'|^(?:Data\s+deposition|Data\s+availability)'  # Data deposition statements
+        r'|^(?:Published\s+(?:online|under)|Received\s+for\s+publication)'  # Publication metadata
+        r'|^(?:Supporting\s+Information|Supplementary\s+Material|See\s+Commentary)\s'  # SI references
+        r'|^(?:This\s+article\s+contains\s+supporting\s+information)'  # SI variant
+        r'|^(?:Copyright|©|\(c\))\s+\d{4}'         # Copyright lines
+        r'|^Corresponding\s+author'                  # Corresponding author line
+        r'|^Conflict\s+of\s+interest\s+statement'   # Conflict of interest header variant
+        r'|^Funding[:\s]'                            # Funding statements
+        r'|^Acknowledgments?[:\s].*(?:grant|funded|supported|NIH|NSF)'  # Acknowledgments with funding
+        r')',
+        re.IGNORECASE,
+    )
+
+    # Standalone footnote marker (1 or 2 digits alone on a line)
+    _FOOTNOTE_MARKER_RE = re.compile(r'^\d{1,2}\s*$')
+
+    # Patterns for continuation lines after Author contributions (initials + verbs)
+    _AUTHOR_CONTRIB_CONTINUATION_RE = re.compile(
+        r'^(?:[A-Z]\.\w{0,3}\.?,?\s*(?:and\s+)?)+.*'
+        r'(?:performed\s+research|contributed|analyzed\s+data|wrote\s+the\s+paper|'
+        r'designed\s+research|analytic\s+tools|reagents)',
+        re.IGNORECASE,
+    )
+
+    def _pass7d_page_artifacts(self, elements: list[DocElement]) -> None:
+        """Detect and suppress page headers, footers, DOI lines, and journal footnotes."""
+        # Roles that should never be overridden by artifact detection
+        _SAFE_ROLES = frozenset({
+            ElementRole.TITLE, ElementRole.HEADING_1, ElementRole.HEADING_2,
+            ElementRole.HEADING_3, ElementRole.ABSTRACT_LABEL,
+        })
+        count = 0
+        suppressed_indices: set[int] = set()
+
+        # ── First pass: match explicit patterns ──
+        for idx, elem in enumerate(elements):
+            if elem.type != ElementType.PARAGRAPH:
+                continue
+            if elem.role in _SAFE_ROLES:
+                continue
+            text = elem.content.strip()
+            if not text:
+                continue
+            is_artifact = (
+                self._PAGE_ARTIFACT_RE.search(text)
+                or self._ALLCAPS_ARTIFACT_RE.search(text)
+                or self._FOOTNOTE_ARTIFACT_RE.search(text)
+                or self._FOOTNOTE_MARKER_RE.search(text)
+                or self._AUTHOR_CONTRIB_CONTINUATION_RE.search(text)
+            )
+            if is_artifact:
+                elem.role = ElementRole.UNKNOWN
+                elem.role_confidence = 0.95
+                elem.content = ""
+                suppressed_indices.add(idx)
+                count += 1
+
+        # ── Second pass: zone suppression ──
+        # After a suppressed footnote element, also suppress nearby short
+        # continuation lines (low-confidence, non-heading) until a heading
+        # or long paragraph is reached.  Max look-ahead: 5 elements.
+        zone_starts = sorted(suppressed_indices)
+        for start_idx in zone_starts:
+            for offset in range(1, 6):
+                nxt = start_idx + offset
+                if nxt >= len(elements) or nxt in suppressed_indices:
+                    continue
+                e = elements[nxt]
+                if e.type != ElementType.PARAGRAPH:
+                    continue
+                # Stop zone suppression at headings or structural elements
+                if e.role in _SAFE_ROLES:
+                    break
+                # Stop at confident roles (headings detected by other passes)
+                if e.role_confidence >= 0.70:
+                    break
+                txt = e.content.strip()
+                if not txt:
+                    continue
+                # Only suppress short continuation lines (< 200 chars)
+                if len(txt) > 200:
+                    break
+                # Check if it looks like a continuation of author contributions
+                # or other metadata (short, contains initials, etc.)
+                if (self._AUTHOR_CONTRIB_CONTINUATION_RE.search(txt)
+                        or len(txt) < 100 and e.role_confidence < 0.50):
+                    e.role = ElementRole.UNKNOWN
+                    e.role_confidence = 0.95
+                    e.content = ""
+                    suppressed_indices.add(nxt)
+                    count += 1
+                else:
+                    break  # Stop zone if we hit a real content paragraph
+
+        if count:
+            logger.info("Page artifact detection: suppressed %d header/footer/footnote lines", count)
+
     # ── Pass 8: Fill remaining → BODY ────────────────────────
 
     def _pass8_fill_remaining(self, elements: list[DocElement]) -> None:
@@ -488,6 +770,126 @@ class StructureDetectorAgent:
                 else:
                     elem.role = ElementRole.BODY
                     elem.role_confidence = 0.30
+
+    # ── Pass 8b: LLM batch correction ────────────────────────
+
+    def _pass8b_llm_batch_correction(self, elements: list[DocElement]) -> None:
+        """
+        Send batches of paragraph fragments to the LLM for role correction.
+        
+        Targets the front-matter area (first ~40 paragraphs) and any
+        low-confidence body paragraphs, where heuristic detection struggles
+        most with PDF-to-DOCX fragmented documents.
+        """
+        try:
+            from backend.llm.client import get_llm_client
+            client = get_llm_client()
+        except Exception as exc:
+            logger.warning("LLM batch correction unavailable: %s", exc)
+            return
+
+        # Collect paragraph elements with their indices
+        para_items: list[tuple[int, DocElement]] = []
+        for i, elem in enumerate(elements):
+            if elem.type == ElementType.PARAGRAPH and elem.content.strip():
+                para_items.append((i, elem))
+
+        if len(para_items) < 10:
+            return
+
+        # ── Batch 1: Front-matter (first 40 paragraph fragments) ──
+        front_matter = para_items[:40]
+        self._llm_correct_batch(client, elements, front_matter, "front-matter")
+
+        # ── Batch 2: Low-confidence body paragraphs (scattered) ───
+        low_conf = [
+            (i, e) for i, e in para_items[40:]
+            if e.role_confidence < 0.40 and e.role in (ElementRole.BODY, ElementRole.UNKNOWN)
+        ]
+        if low_conf:
+            self._llm_correct_batch(client, elements, low_conf[:30], "low-confidence")
+
+    def _llm_correct_batch(
+        self,
+        client,
+        all_elements: list[DocElement],
+        batch: list[tuple[int, DocElement]],
+        batch_name: str,
+    ) -> None:
+        """Send a batch of paragraphs to LLM for role classification."""
+        if not batch:
+            return
+
+        # Build context string showing numbered lines with current roles
+        lines = []
+        for seq, (idx, elem) in enumerate(batch):
+            text = elem.content.strip()[:150]
+            role = elem.role.value
+            conf = f"{elem.role_confidence:.2f}"
+            lines.append(f"{seq}: [{role} conf={conf}] {text}")
+
+        context_str = "\n".join(lines)
+
+        system_prompt = (
+            "You are an expert in academic paper structure. You are given a list of "
+            "paragraph fragments from a PDF-to-DOCX conversion where each PDF line "
+            "became a separate paragraph. Each line shows: index, current detected role "
+            "(with confidence), and text preview.\n\n"
+            "Your task: Correct the role of each paragraph. Valid roles are:\n"
+            "title, author_info, abstract_label, abstract_body, keywords, "
+            "heading_1, heading_2, heading_3, body, reference_label, "
+            "reference_entry, table_caption, figure_caption, appendix, unknown\n\n"
+            "Return JSON: {\"corrections\": [{\"index\": <int>, \"role\": \"<role>\", "
+            "\"confidence\": <0.0-1.0>}, ...]}. Only include entries that NEED correction. "
+            "If a role is already correct, omit it."
+        )
+
+        user_prompt = (
+            f"Classify/correct these {batch_name} paragraph fragments from a "
+            f"research paper:\n\n{context_str}\n\n"
+            "Return JSON with corrections only."
+        )
+
+        try:
+            result = client.chat_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=0.1,
+                max_tokens=2000,
+            )
+
+            corrections = result.get("corrections", [])
+            applied = 0
+            for corr in corrections:
+                seq_idx = corr.get("index")
+                new_role_str = corr.get("role", "")
+                new_conf = float(corr.get("confidence", 0.5))
+
+                if seq_idx is None or seq_idx >= len(batch):
+                    continue
+
+                _elem_idx, elem = batch[seq_idx]
+                try:
+                    new_role = ElementRole(new_role_str)
+                    # Only apply if LLM is more confident than current
+                    if new_conf > elem.role_confidence or elem.role_confidence < 0.50:
+                        old_role = elem.role.value
+                        elem.role = new_role
+                        elem.role_confidence = new_conf
+                        applied += 1
+                        logger.debug(
+                            "LLM corrected P[%d] %s → %s (%.2f)",
+                            _elem_idx, old_role, new_role_str, new_conf,
+                        )
+                except ValueError:
+                    pass
+
+            logger.info(
+                "LLM batch correction (%s): %d corrections applied out of %d suggested",
+                batch_name, applied, len(corrections),
+            )
+        except Exception as exc:
+            logger.warning("LLM batch correction failed (%s): %s", batch_name, exc)
 
     # ── Pass 9: Citation extraction ──────────────────────────
 

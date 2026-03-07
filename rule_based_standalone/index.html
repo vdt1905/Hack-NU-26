@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deterministic Rule-Based Reconstructor</title>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif; 
+            padding: 40px 20px; 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 { margin-top: 0; color: #111; }
+        .description { margin-bottom: 25px; color: #666; line-height: 1.5; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; }
+        input[type="file"], select { 
+            display: block;
+            width: 100%;
+            padding: 10px;
+            border: 1px dashed #ccc;
+            border-radius: 4px;
+            background-color: #fafafa;
+            box-sizing: border-box;
+        }
+        select {
+            border: 1px solid #ccc;
+            appearance: auto;
+        }
+        button { 
+            background-color: #0d6efd; 
+            color: white; 
+            border: none; 
+            padding: 12px 20px; 
+            cursor: pointer; 
+            border-radius: 6px; 
+            font-size: 16px; 
+            font-weight: 600;
+            width: 100%; 
+            transition: background-color 0.2s;
+        }
+        button:hover { background-color: #0b5ed7; }
+        button:disabled { background-color: #a5c8fd; cursor: not-allowed; }
+        #status { 
+            margin-top: 20px; 
+            padding: 15px; 
+            border-radius: 6px; 
+            display: none; 
+            font-weight: 500;
+        }
+        .success { background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+        .error { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+        .processing { background-color: #fff3cd; color: #664d03; border: 1px solid #ffecb5; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Rule-Based Reconstructor</h1>
+        <p class="description">
+            This module deterministically reconstructs a Word document. No LLMs are used here. <br><br>
+            Please provide the <strong>original DOCX</strong> and select your desired <strong>Formatting Style</strong>.
+        </p>
+
+        <form id="reconstructForm">
+            <div class="form-group">
+                <label for="documentFile">1. Original Document (.docx)</label>
+                <input type="file" id="documentFile" accept=".docx" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="styleSelect">2. Target Formatting Style</label>
+                <select id="styleSelect" required>
+                    <option value="apa7">APA 7th Edition</option>
+                    <option value="chicago">Chicago Manual of Style</option>
+                    <option value="ieee">IEEE</option>
+                    <option value="mla">MLA Format</option>
+                    <option value="vancouver">Vancouver Style</option>
+                </select>
+            </div>
+
+            <button type="submit" id="submitBtn">Reconstruct Document</button>
+        </form>
+
+        <div id="status"></div>
+    </div>
+
+    <script>
+        document.getElementById('reconstructForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const btn = document.getElementById('submitBtn');
+            const statusDiv = document.getElementById('status');
+            
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'processing';
+            statusDiv.textContent = 'Applying formatting rules deterministically... Please wait.';
+
+            const formData = new FormData();
+            formData.append('document', document.getElementById('documentFile').files[0]);
+            formData.append('style', document.getElementById('styleSelect').value);
+
+            try {
+                // Call the API on port 8085
+                const response = await fetch('http://127.0.0.1:8085/api/reconstruct_auto', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(`Server Error (${response.status}): ${text}`);
+                }
+
+                // Retrieve file and trigger download
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                
+                // Get filename based on original
+                const oriName = document.getElementById('documentFile').files[0].name;
+                a.download = `Formatted_${oriName}`;
+                
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+
+                statusDiv.className = 'success';
+                statusDiv.innerHTML = `&#10004; Success! <b>Formatted_${oriName}</b> has been generated and downloaded.`;
+            } catch (error) {
+                console.error(error);
+                statusDiv.className = 'error';
+                statusDiv.textContent = `Error: ${error.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Reconstruct Document';
+            }
+        });
+    </script>
+</body>
+</html>

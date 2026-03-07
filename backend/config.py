@@ -48,4 +48,6 @@ AVAILABLE_STYLES = {
     "apa7": "APA 7th Edition",
     "vancouver": "Vancouver",
     "ieee": "IEEE",
+    "mla": "MLA 9th Edition",
+    "chicago": "Chicago 17th Edition",
 }

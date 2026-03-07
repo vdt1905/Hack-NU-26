@@ -1,0 +1,176 @@
+{
+  "style_name": "IEEE",
+  "style_id": "ieee",
+  "csl_style": "ieee",
+
+  "page_layout": {
+    "margin_top_inches": 0.75,
+    "margin_bottom_inches": 1.0,
+    "margin_left_inches": 0.625,
+    "margin_right_inches": 0.625,
+    "page_width_inches": 8.5,
+    "page_height_inches": 11.0,
+    "orientation": "portrait",
+    "columns": 2,
+    "column_spacing_inches": 0.25
+  },
+
+  "default_typography": {
+    "font_name": "Times New Roman",
+    "font_size_pt": 10.0,
+    "line_spacing": 1.0,
+    "line_spacing_type": "single",
+    "paragraph_alignment": "justify",
+    "first_line_indent_inches": 0.25,
+    "space_after_paragraph_pt": 0.0,
+    "space_before_paragraph_pt": 0.0
+  },
+
+  "title_page": {
+    "required": false,
+    "title": {
+      "font_size_pt": 24.0,
+      "bold": false,
+      "italic": false,
+      "alignment": "center",
+      "position": "top of first page"
+    },
+    "author_name": {
+      "font_size_pt": 11.0,
+      "bold": false,
+      "italic": false,
+      "alignment": "center",
+      "position": "below title"
+    },
+    "affiliation": {
+      "font_size_pt": 10.0,
+      "bold": false,
+      "italic": true,
+      "alignment": "center"
+    },
+    "course_info": null,
+    "instructor": null,
+    "date": null
+  },
+
+  "abstract": {
+    "label": "Abstract",
+    "label_bold": true,
+    "label_alignment": "center",
+    "paragraph_indent": false,
+    "max_words": 200,
+    "keywords_label": "Index Terms—",
+    "keywords_italic": true,
+    "keywords_indent": false
+  },
+
+  "headings": {
+    "numbering_style": "ieee",
+    "level_1": {
+      "alignment": "center",
+      "bold": false,
+      "italic": false,
+      "font_size_pt": 10.0,
+      "case": "upper",
+      "standalone_line": true,
+      "ends_with_period": false,
+      "indent_inches": null,
+      "description": "Centered, Small Caps, Roman Numeral Prefix, e.g. I. INTRODUCTION"
+    },
+    "level_2": {
+      "alignment": "left",
+      "bold": false,
+      "italic": true,
+      "font_size_pt": 10.0,
+      "case": "title_case",
+      "standalone_line": true,
+      "ends_with_period": false,
+      "indent_inches": null,
+      "description": "Flush Left, Italic, Letter Prefix, e.g. A. Subsection Title"
+    },
+    "level_3": {
+      "alignment": "left",
+      "bold": false,
+      "italic": false,
+      "font_size_pt": 10.0,
+      "case": "sentence_case",
+      "standalone_line": false,
+      "ends_with_period": true,
+      "indent_inches": 0.25,
+      "description": "Indented, Italic, Numbered, Period. Text follows."
+    },
+    "level_4": {
+      "alignment": "left",
+      "bold": false,
+      "italic": false,
+      "font_size_pt": 10.0,
+      "case": "sentence_case",
+      "standalone_line": false,
+      "ends_with_period": true,
+      "indent_inches": 0.25,
+      "description": "Indented, Italic, Lowercase Letter, Period."
+    },
+    "level_5": {
+      "alignment": "left",
+      "bold": false,
+      "italic": false,
+      "font_size_pt": 10.0,
+      "case": "sentence_case",
+      "standalone_line": false,
+      "ends_with_period": true,
+      "indent_inches": 0.25,
+      "description": "Indented, Roman, Sentence Case, Period."
+    }
+  },
+
+  "running_head": {
+    "enabled": false,
+    "content": "",
+    "alignment": "left",
+    "page_number_alignment": "right",
+    "font_size_pt": 10.0,
+    "all_caps": false,
+    "max_characters": 50
+  },
+
+  "references": {
+    "section_label": "References",
+    "label_bold": false,
+    "label_alignment": "center",
+    "entry_indent_type": "none",
+    "hanging_indent_inches": 0.0,
+    "order": "order_of_appearance",
+    "line_spacing": 1.0,
+    "csl_style_name": "ieee"
+  },
+
+  "tables": {
+    "number_label": "TABLE",
+    "number_bold": false,
+    "number_italic": false,
+    "title_italic": false,
+    "title_below_number": false,
+    "note_prefix": "",
+    "note_italic_prefix": false,
+    "horizontal_lines_only": true
+  },
+
+  "figures": {
+    "number_label": "Fig.",
+    "number_bold": false,
+    "number_italic": false,
+    "title_italic": false,
+    "title_below_number": true,
+    "note_prefix": "",
+    "note_italic_prefix": false
+  },
+
+  "in_text_citations": {
+    "style": "numeric",
+    "parenthetical_format": "[1]",
+    "narrative_format": "[1]",
+    "et_al_threshold": 7,
+    "ampersand_in_parenthetical": false,
+    "and_in_narrative": false
+  }
+}

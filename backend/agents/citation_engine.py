@@ -205,24 +205,59 @@ class CitationEngineAgent:
     # ══════════════════════════════════════════════════════════
 
     def _parse_references(self, docir: DocIR) -> None:
-        """Parse raw reference strings into structured ParsedReference."""
+        """Parse raw reference strings into structured ParsedReference.
+        
+        Handles multi-paragraph references by merging continuation lines
+        (paragraphs that don't start with a number) into the previous reference.
+        """
         ref_elements = docir.get_reference_entries()
 
+        # ── Step 1: Merge continuation lines ─────────────────
+        # Some reference entries span multiple paragraphs.  A continuation
+        # line is any reference_entry that does NOT start with a numbered
+        # prefix (e.g. "1." or "2)") and does NOT look like a new APA-style
+        # reference (Author, A. B. (Year)...).
+        import re as _re
+        _NUM_PREFIX = _re.compile(r'^\d{1,3}[\.\)]\s')
+        _APA_START  = _re.compile(r'^[A-Z][a-zà-ÿ]+[\s,]')  # Author surname start
+
+        merged_refs: list[tuple[DocElement, str]] = []  # (primary_elem, merged_text)
         for elem in ref_elements:
             text = elem.content.strip()
             if not text:
                 continue
-            elem.parsed_reference = self._parse_single_reference(text)
+            is_new_entry = (
+                _NUM_PREFIX.match(text)                     # numbered: "1. Author..."
+                or not merged_refs                          # very first reference
+                or (                                        # APA-style: "Author, X. (2023)..."
+                    _APA_START.match(text)
+                    and _re.search(r'\(\d{4}', text)
+                )
+            )
+            if is_new_entry:
+                merged_refs.append((elem, text))
+            else:
+                # Continuation line — append to previous reference
+                prev_elem, prev_text = merged_refs[-1]
+                merged_refs[-1] = (prev_elem, prev_text + " " + text)
+                # Clear the continuation element's content so it won't
+                # be double-counted in validation
+                elem.parsed_reference = ParsedReference()
+
+        # ── Step 2: Parse each merged reference ──────────────
+        for elem, merged_text in merged_refs:
+            elem.parsed_reference = self._parse_single_reference(merged_text)
 
         parsed_ok = sum(
             1
-            for e in ref_elements
-            if e.parsed_reference
-            and (e.parsed_reference.year or e.parsed_reference.authors)
+            for elem, _ in merged_refs
+            if elem.parsed_reference
+            and (elem.parsed_reference.year or elem.parsed_reference.authors)
         )
         logger.info(
-            "Parsed %d/%d reference entries successfully.",
+            "Parsed %d/%d reference entries successfully (merged from %d paragraphs).",
             parsed_ok,
+            len(merged_refs),
             len(ref_elements),
         )
 
@@ -479,8 +514,21 @@ class CitationEngineAgent:
         all_citations = docir.get_all_citations()
         ref_elements = docir.get_reference_entries()
 
+        # Filter out continuation-line elements (those with empty ParsedReference
+        # set by _parse_references during merge).  Only count refs that have
+        # meaningful parsed data or at least substantive text.
+        primary_refs = [
+            e for e in ref_elements
+            if e.parsed_reference is None  # never parsed (shouldn't happen)
+            or e.parsed_reference.year
+            or e.parsed_reference.authors
+            or e.parsed_reference.original_number is not None
+            or (e.content and len(e.content.strip()) > 30
+                and re.match(r'^\d{1,3}[\.\)]', e.content.strip()))
+        ]
+
         report.total_citations = len(all_citations)
-        report.total_references = len(ref_elements)
+        report.total_references = len(primary_refs)
 
         matched_refs: set[str] = set()
 
@@ -491,16 +539,16 @@ class CitationEngineAgent:
         if numeric_count > author_date_count:
             # ── Numeric citation system ──────────────────────
             self._match_numeric_citations(
-                all_citations, ref_elements, report, matched_refs
+                all_citations, primary_refs, report, matched_refs
             )
         else:
             # ── Author-date citation system ──────────────────
             self._match_author_date_citations(
-                all_citations, ref_elements, report, matched_refs
+                all_citations, primary_refs, report, matched_refs
             )
 
         # ── Check for uncited references ─────────────────────
-        for ref_elem in ref_elements:
+        for ref_elem in primary_refs:
             if ref_elem.id not in matched_refs:
                 report.uncited_references.append(
                     OrphanReference(

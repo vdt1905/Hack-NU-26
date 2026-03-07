@@ -11,6 +11,8 @@ from pathlib import Path
 
 import streamlit as st
 
+logging.basicConfig(level=logging.INFO)
+
 # ── Page config ──────────────────────────────────────────────
 
 st.set_page_config(
@@ -61,7 +63,7 @@ with st.sidebar:
 
     style_choice = st.selectbox(
         "Select Style Guide",
-        options=["APA 7th Edition", "Vancouver", "IEEE"],
+        options=["APA 7th Edition", "Vancouver", "IEEE", "MLA 9th Edition", "Chicago 17th Edition"],
         index=0,
     )
 
@@ -69,6 +71,8 @@ with st.sidebar:
         "APA 7th Edition": "apa7",
         "Vancouver": "vancouver",
         "IEEE": "ieee",
+        "MLA 9th Edition": "mla",
+        "Chicago 17th Edition": "chicago",
     }
 
     custom_guidelines = st.text_area(
@@ -95,17 +99,21 @@ if process_btn and uploaded_file:
     style_id = STYLE_MAP.get(style_choice, "apa7")
     guidelines = custom_guidelines.strip() if custom_guidelines else None
 
-    # Run pipeline
+    # Run pipeline (use a fresh event loop to avoid conflicts with Streamlit)
     with st.spinner("⚙️ Processing manuscript…"):
         try:
             from backend.agents.orchestrator import Orchestrator
 
             orchestrator = Orchestrator()
-            result = asyncio.run(orchestrator.run(
-                input_path=tmp_path,
-                style_id=style_id,
-                guidelines_text=guidelines,
-            ))
+            loop = asyncio.new_event_loop()
+            try:
+                result = loop.run_until_complete(orchestrator.run(
+                    input_path=tmp_path,
+                    style_id=style_id,
+                    guidelines_text=guidelines,
+                ))
+            finally:
+                loop.close()
 
         except Exception as exc:
             st.error(f"❌ Pipeline error: {exc}")
@@ -173,18 +181,41 @@ if process_btn and uploaded_file:
             st.write(f"{bar_color} **{cat.category}**: {pct:.0f}%")
             st.progress(pct / 100)
 
-    # ── Column 3: Changes Log ────────────────────────────────
+    # ── Column 3: Changes Log + Citation Stats ─────────────────
     with col3:
         st.subheader("📝 Changes Made")
 
         changes = report.changes
         if changes:
-            for c in changes:
+            applied = sum(1 for c in changes if c.status.value == "applied")
+            skipped = sum(1 for c in changes if c.status.value == "skipped")
+            failed  = sum(1 for c in changes if c.status.value == "failed")
+            st.write(f"**{applied}** applied · **{skipped}** skipped · **{failed}** failed")
+
+            # Show first 15 inline, rest in expander
+            visible = changes[:15]
+            hidden  = changes[15:]
+            for c in visible:
                 icon = "✅" if c.status.value == "applied" else "⚠️" if c.status.value == "skipped" else "❌"
                 rule_str = f" — {c.rule_reference}" if c.rule_reference else ""
                 st.write(f"{icon} {c.description}{rule_str}")
+            if hidden:
+                with st.expander(f"Show {len(hidden)} more changes…"):
+                    for c in hidden:
+                        icon = "✅" if c.status.value == "applied" else "⚠️" if c.status.value == "skipped" else "❌"
+                        rule_str = f" — {c.rule_reference}" if c.rule_reference else ""
+                        st.write(f"{icon} {c.description}{rule_str}")
         else:
             st.info("No changes recorded.")
+
+        # Citation stats
+        cit = result.citation_report
+        if cit.total_citations or cit.total_references:
+            st.subheader("🔗 Citation Analysis")
+            st.write(f"**{cit.total_citations}** in-text citations · **{cit.total_references}** references")
+            st.write(f"**{cit.matched}** matched · **{len(cit.orphan_citations)}** orphan · **{len(cit.uncited_references)}** uncited")
+            cit_color = "#28a745" if cit.consistency_score >= 80 else "#ffc107" if cit.consistency_score >= 60 else "#dc3545"
+            st.markdown(f"Citation consistency: <b style='color:{cit_color}'>{cit.consistency_score:.1f}%</b>", unsafe_allow_html=True)
 
         if report.warnings:
             st.subheader("⚠️ Warnings")
@@ -238,7 +269,7 @@ elif not uploaded_file:
     st.markdown("""
     ### How It Works
     1. **Upload** your research manuscript (.docx)
-    2. **Select** the target style guide (APA 7, Vancouver, IEEE)
+    2. **Select** the target style guide (APA 7, Vancouver, IEEE, MLA, Chicago)
     3. **Click** "Format Document"
     4. **Download** the publication-ready formatted DOCX + compliance report
 

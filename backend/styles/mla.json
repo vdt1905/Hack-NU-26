@@ -1,0 +1,188 @@
+{
+  "style_name": "MLA 9th Edition",
+  "style_id": "mla",
+  "csl_style": "modern-language-association",
+
+  "page_layout": {
+    "margin_top_inches": 1.0,
+    "margin_bottom_inches": 1.0,
+    "margin_left_inches": 1.0,
+    "margin_right_inches": 1.0,
+    "page_width_inches": 8.5,
+    "page_height_inches": 11.0,
+    "orientation": "portrait"
+  },
+
+  "default_typography": {
+    "font_name": "Times New Roman",
+    "font_size_pt": 12.0,
+    "line_spacing": 2.0,
+    "line_spacing_type": "double",
+    "paragraph_alignment": "left",
+    "first_line_indent_inches": 0.5,
+    "space_after_paragraph_pt": 0.0,
+    "space_before_paragraph_pt": 0.0
+  },
+
+  "title_page": {
+    "required": false,
+    "title": {
+      "font_size_pt": 12.0,
+      "bold": false,
+      "italic": false,
+      "alignment": "center",
+      "position": "centered after header block, not bold"
+    },
+    "author_name": {
+      "font_size_pt": 12.0,
+      "bold": false,
+      "italic": false,
+      "alignment": "left",
+      "position": "top-left header block: name, instructor, course, date"
+    },
+    "affiliation": {
+      "font_size_pt": 12.0,
+      "bold": false,
+      "italic": false,
+      "alignment": "left"
+    },
+    "course_info": {
+      "font_size_pt": 12.0,
+      "bold": false,
+      "italic": false,
+      "alignment": "left"
+    },
+    "instructor": {
+      "font_size_pt": 12.0,
+      "bold": false,
+      "italic": false,
+      "alignment": "left"
+    },
+    "date": {
+      "font_size_pt": 12.0,
+      "bold": false,
+      "italic": false,
+      "alignment": "left"
+    }
+  },
+
+  "abstract": {
+    "label": "",
+    "label_bold": false,
+    "label_alignment": "left",
+    "paragraph_indent": false,
+    "max_words": 0,
+    "keywords_label": "",
+    "keywords_italic": false,
+    "keywords_indent": false
+  },
+
+  "headings": {
+    "level_1": {
+      "alignment": "center",
+      "bold": true,
+      "italic": false,
+      "font_size_pt": 12.0,
+      "case": "title_case",
+      "standalone_line": true,
+      "ends_with_period": false,
+      "indent_inches": null,
+      "description": "Centered, Bold, Title Case (optional section headings)"
+    },
+    "level_2": {
+      "alignment": "left",
+      "bold": true,
+      "italic": false,
+      "font_size_pt": 12.0,
+      "case": "title_case",
+      "standalone_line": true,
+      "ends_with_period": false,
+      "indent_inches": null,
+      "description": "Flush Left, Bold, Title Case"
+    },
+    "level_3": {
+      "alignment": "left",
+      "bold": true,
+      "italic": true,
+      "font_size_pt": 12.0,
+      "case": "title_case",
+      "standalone_line": true,
+      "ends_with_period": false,
+      "indent_inches": null,
+      "description": "Flush Left, Bold Italic, Title Case"
+    },
+    "level_4": {
+      "alignment": "left",
+      "bold": false,
+      "italic": true,
+      "font_size_pt": 12.0,
+      "case": "title_case",
+      "standalone_line": true,
+      "ends_with_period": false,
+      "indent_inches": null,
+      "description": "Flush Left, Italic, Title Case"
+    },
+    "level_5": {
+      "alignment": "left",
+      "bold": false,
+      "italic": false,
+      "font_size_pt": 12.0,
+      "case": "title_case",
+      "standalone_line": true,
+      "ends_with_period": true,
+      "indent_inches": null,
+      "description": "Flush Left, No Formatting, Title Case, Period."
+    }
+  },
+
+  "running_head": {
+    "enabled": true,
+    "content": "LAST_NAME",
+    "alignment": "right",
+    "page_number_alignment": "right",
+    "font_size_pt": 12.0,
+    "all_caps": false,
+    "max_characters": 50
+  },
+
+  "references": {
+    "section_label": "Works Cited",
+    "label_bold": true,
+    "label_alignment": "center",
+    "entry_indent_type": "hanging",
+    "hanging_indent_inches": 0.5,
+    "order": "alphabetical_by_first_author",
+    "line_spacing": 2.0,
+    "csl_style_name": "modern-language-association"
+  },
+
+  "tables": {
+    "number_label": "Table",
+    "number_bold": false,
+    "number_italic": false,
+    "title_italic": false,
+    "title_below_number": true,
+    "note_prefix": "Source:",
+    "note_italic_prefix": false,
+    "horizontal_lines_only": true
+  },
+
+  "figures": {
+    "number_label": "Fig.",
+    "number_bold": false,
+    "number_italic": false,
+    "title_italic": false,
+    "title_below_number": true,
+    "note_prefix": "Source:",
+    "note_italic_prefix": false
+  },
+
+  "in_text_citations": {
+    "style": "author-date",
+    "parenthetical_format": "(Author Page)",
+    "narrative_format": "Author (Page)",
+    "et_al_threshold": 3,
+    "ampersand_in_parenthetical": false,
+    "and_in_narrative": true
+  }
+}

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from backend.config import (
@@ -34,6 +35,22 @@ app = FastAPI(
     description=APP_DESCRIPTION,
     version=APP_VERSION,
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ── Include Agno LLM streaming router ───────────────────────
+try:
+    from backend.agno_router import agno_router
+    app.include_router(agno_router)
+    logger.info("Unified pipeline router loaded (/api/v2/pipeline/stream)")
+except Exception as exc:
+    logger.warning(f"Agno router not loaded: {exc}")
 
 
 # ── Health check ─────────────────────────────────────────────

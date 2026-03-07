@@ -80,16 +80,40 @@ class LLMClient:
         """
         Send a chat completion request and return the assistant's text.
 
-        Args:
-            system_prompt: System-level instruction.
-            user_prompt: User message / input.
-            temperature: Sampling temperature (lower = more deterministic).
-            max_tokens: Maximum tokens in the response.
-            json_mode: If True, request JSON output format.
-
-        Returns:
-            The assistant's response text.
+        Auto-falls back to Groq if the primary provider fails (quota, etc.).
         """
+        try:
+            return self._do_chat(system_prompt, user_prompt, temperature, max_tokens, json_mode)
+        except Exception as primary_exc:
+            # Auto-fallback to Groq if primary is OpenAI and Groq key exists
+            if self.provider == "openai" and GROQ_API_KEY:
+                logger.warning(
+                    "Primary LLM (%s) failed: %s — falling back to Groq",
+                    self.provider, primary_exc,
+                )
+                try:
+                    fallback = LLMClient(
+                        provider="groq",
+                        model="llama-3.3-70b-versatile",
+                        api_key=GROQ_API_KEY,
+                    )
+                    return fallback._do_chat(
+                        system_prompt, user_prompt, temperature, max_tokens, json_mode,
+                    )
+                except Exception as fb_exc:
+                    logger.error("Groq fallback also failed: %s", fb_exc)
+                    raise fb_exc from primary_exc
+            raise
+
+    def _do_chat(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float,
+        max_tokens: int,
+        json_mode: bool,
+    ) -> str:
+        """Execute the actual chat completion call."""
         if self._client is None:
             raise RuntimeError(
                 f"LLM client not initialised. Provider={self.provider}. "
@@ -111,20 +135,16 @@ class LLMClient:
         if json_mode and self.provider in ("openai", "groq"):
             kwargs["response_format"] = {"type": "json_object"}
 
-        try:
-            response = self._client.chat.completions.create(**kwargs)
-            content = response.choices[0].message.content or ""
-            logger.info(
-                "LLM call [%s/%s]  tokens: prompt=%s completion=%s",
-                self.provider,
-                self.model,
-                getattr(response.usage, "prompt_tokens", "?"),
-                getattr(response.usage, "completion_tokens", "?"),
-            )
-            return content.strip()
-        except Exception as exc:
-            logger.error("LLM call failed: %s", exc)
-            raise
+        response = self._client.chat.completions.create(**kwargs)
+        content = response.choices[0].message.content or ""
+        logger.info(
+            "LLM call [%s/%s]  tokens: prompt=%s completion=%s",
+            self.provider,
+            self.model,
+            getattr(response.usage, "prompt_tokens", "?"),
+            getattr(response.usage, "completion_tokens", "?"),
+        )
+        return content.strip()
 
     # ── Convenience: get JSON from LLM ───────────────────────
 
